@@ -47,7 +47,7 @@ export default function GroupsPage() {
             {/* Header */}
             <div className="flex items-center justify-between gap-4">
                 <h1 className="text-2xl font-bold text-gray-800">
-                    Manajemen Group
+                    Manajemen Audit
                 </h1>
 
                 <Button
