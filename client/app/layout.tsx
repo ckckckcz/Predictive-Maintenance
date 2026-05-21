@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Figtree } from "next/font/google";
 import "./globals.css";
+import ClientWrapper from "@/components/ClientWrapper";
+import { cn } from "@/lib/utils";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +16,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Greenfields - Predictive Maintenance",
-  description: "-",
+  description: "Greenfields is a predictive maintenance web application that helps you monitor and maintain your equipment efficiently. With real-time data analysis and intelligent insights, Greenfields enables you to predict potential failures and optimize maintenance schedules, reducing downtime and improving overall operational efficiency.",
 };
+
+const figtree = Figtree({ subsets: ['latin'], variable: '--font-sans' });
 
 export default function RootLayout({
   children,
@@ -23,11 +27,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className={cn("font-sans", figtree.variable)}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
+      >
+        <ClientWrapper>{children}</ClientWrapper>
+      </body>
     </html>
   );
 }
