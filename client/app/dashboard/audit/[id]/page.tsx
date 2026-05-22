@@ -19,8 +19,9 @@ import {
     ShieldAlert,
 } from "lucide-react"
 import {
-    LineChart,
+    ComposedChart,
     Line,
+    Area,
     XAxis,
     YAxis,
     CartesianGrid,

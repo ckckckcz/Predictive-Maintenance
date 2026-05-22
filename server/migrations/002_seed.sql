@@ -1,5 +1,4 @@
 -- Initial Supervisor Account
--- Password: Admin@123 (bcrypt cost 12)
 INSERT INTO users (name, email, password, role, phone, is_active)
 VALUES (
     'John Doe',
