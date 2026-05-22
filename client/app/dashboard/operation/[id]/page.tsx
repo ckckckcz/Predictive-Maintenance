@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useMachineDetail } from "@/hooks/useMachineDetail"
+import { useAIAnalysis } from "@/hooks/useAIAnalysis"
 import { buildChartData, getThreshold } from "@/utils/chartUtils"
 import { MachineTelemetryChart } from "@/components/dashboard/machine-telemetry-chart"
-import { MachineSensorCard } from "@/components/dashboard/machine-sensor-card"
 import { IncidentLogTable } from "@/components/dashboard/incident-log-table"
 import { AIAnalysisCard } from "@/components/dashboard/ai-analysis-card"
 import toast from "react-hot-toast"
@@ -22,11 +22,17 @@ export default function MachineDetailPage() {
     const [currentPage, setCurrentPage] = useState(1)
     const [simulating, setSimulating] = useState(false)
 
+    const aiAnalysis = useAIAnalysis(machineId)
+
     const {
         machine, history, incidents, loading,
         activeTab, setActiveTab, latestReading, activeIncidents,
         timeFrame, setTimeFrame, refresh,
-    } = useMachineDetail(machineId)
+        handleAcknowledge, handleResolve,
+    } = useMachineDetail(machineId, () => {
+        // Automatically trigger AI re-analysis when incidents are resolved or acknowledged
+        aiAnalysis.reanalyze()
+    })
 
     const handleSimulateAnomaly = async () => {
         setSimulating(true)
@@ -35,6 +41,8 @@ export default function MachineDetailPage() {
             await api.post(`/api/v1/machines/${machineId}/simulate-anomaly`)
             toast.success("Anomali berhasil disimulasikan! Sensor mendeteksi kegagalan.", { id: toastId })
             refresh()
+            // Immediately update AI Analysis card
+            await aiAnalysis.reanalyze()
         } catch (err: any) {
             toast.error(`Gagal mensimulasikan anomali: ${err.message}`, { id: toastId })
         } finally {
@@ -117,7 +125,7 @@ export default function MachineDetailPage() {
 
             {/* Main grid: chart + sensor card */}
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                <div className="xl:col-span-8">
+                <div className="xl:col-span-8 flex flex-col">
                     <MachineTelemetryChart
                         chartData={chartData}
                         activeTab={activeTab}
@@ -127,11 +135,18 @@ export default function MachineDetailPage() {
                         threshold={threshold}
                         timeFrame={timeFrame}
                         setTimeFrame={setTimeFrame}
+                        hideTimeFrameToggle={true}
                     />
                 </div>
                 <div className="xl:col-span-4 flex flex-col gap-6">
-                    <MachineSensorCard reading={latestReading} />
-                    <AIAnalysisCard machineId={machineId} />
+                    <AIAnalysisCard
+                        machineId={machineId}
+                        analysis={aiAnalysis.analysis}
+                        isLoading={aiAnalysis.isLoading}
+                        isStale={aiAnalysis.isStale}
+                        error={aiAnalysis.error}
+                        reanalyze={aiAnalysis.reanalyze}
+                    />
                 </div>
             </div>
 
@@ -140,6 +155,8 @@ export default function MachineDetailPage() {
                 incidents={incidents}
                 currentPage={currentPage}
                 setCurrentPage={setCurrentPage}
+                onAcknowledge={handleAcknowledge}
+                onResolve={handleResolve}
             />
         </div>
     )

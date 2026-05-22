@@ -6,6 +6,7 @@ export interface ChartPoint {
     predictiveValue: number | null
     range: [number, number] | null
     isPredictive: boolean
+    isAnomaly?: boolean
 }
 
 export function buildChartData(
@@ -17,11 +18,12 @@ export function buildChartData(
 ): ChartPoint[] {
     if (history.length === 0) return []
 
-    let finalHistoryPoints: { timeMs: number; value: number }[] = []
+    let finalHistoryPoints: { timeMs: number; value: number; isAnomaly?: boolean }[] = []
 
     if (timeFrame === "hourly") {
         // Group by hour
         const grouped: Record<number, number[]> = {}
+        const groupedAnomalies: Record<number, boolean> = {}
         history.forEach((r) => {
             const date = new Date(r.read_at)
             date.setMinutes(0, 0, 0)
@@ -30,6 +32,9 @@ export function buildChartData(
             if (val !== null) {
                 if (!grouped[hourMs]) grouped[hourMs] = []
                 grouped[hourMs].push(val)
+                if (r.is_anomaly) {
+                    groupedAnomalies[hourMs] = true
+                }
             }
         })
 
@@ -40,7 +45,7 @@ export function buildChartData(
         finalHistoryPoints = sortedHours.map((hourMs) => {
             const vals = grouped[hourMs]
             const avg = vals.reduce((acc, curr) => acc + curr, 0) / vals.length
-            return { timeMs: hourMs, value: avg }
+            return { timeMs: hourMs, value: avg, isAnomaly: !!groupedAnomalies[hourMs] }
         })
 
         // If we have fewer than 10 points, backfill with realistic mock hours preceding the first hour
@@ -48,14 +53,14 @@ export function buildChartData(
             const firstHourMs = finalHistoryPoints[0].timeMs
             const firstVal = finalHistoryPoints[0].value
             const pointsToNeed = 10 - finalHistoryPoints.length
-            const mockPoints: { timeMs: number; value: number }[] = []
+            const mockPoints: { timeMs: number; value: number; isAnomaly?: boolean }[] = []
 
             for (let i = pointsToNeed; i > 0; i--) {
                 const mockTimeMs = firstHourMs - i * 60 * 60 * 1000
                 // Generate a stable value with tiny random variance around the first value
                 const variance = (Math.sin(i) * 0.02) * firstVal
                 const mockVal = Math.max(0, firstVal + variance)
-                mockPoints.push({ timeMs: mockTimeMs, value: mockVal })
+                mockPoints.push({ timeMs: mockTimeMs, value: mockVal, isAnomaly: false })
             }
             finalHistoryPoints = [...mockPoints, ...finalHistoryPoints]
         }
@@ -64,6 +69,7 @@ export function buildChartData(
         finalHistoryPoints = history.map((r) => ({
             timeMs: new Date(r.read_at).getTime(),
             value: r[activeTab as keyof SensorReading] as number,
+            isAnomaly: r.is_anomaly,
         }))
     }
 
@@ -77,6 +83,7 @@ export function buildChartData(
         predictiveValue: null,
         range: null,
         isPredictive: false,
+        isAnomaly: p.isAnomaly,
     }))
 
     const lastPoint = historicalPoints[historicalPoints.length - 1]
@@ -133,9 +140,33 @@ export function buildChartData(
     return [...historicalPoints, ...futurePoints]
 }
 
-export function getThreshold(activeTab: string, machineCode: string) {
-    if (activeTab === "vibration" && machineCode === "FLL-002") return { value: 2.5, label: "Batas Normal (< 2.5Hz)", color: "#E11D48" }
-    if (activeTab === "temperature" && machineCode === "PST-001") return { value: 75, label: "Batas Atas Normal (75°C)", color: "#D97706" }
-    if (activeTab === "temperature" && machineCode === "CLD-003") return { value: 4, label: "Batas Atas Normal (4°C)", color: "#D97706" }
+export interface ThresholdConfig {
+    min?: number
+    max?: number
+    minLabel?: string
+    maxLabel?: string
+}
+
+export function getThreshold(activeTab: string, machineCode: string): ThresholdConfig | null {
+    switch (machineCode) {
+        case "PST-001":
+            if (activeTab === "temperature") return { min: 72.0, max: 75.0, minLabel: "Min Normal (72°C)", maxLabel: "Max Normal (75°C)" }
+            break
+        case "FLL-002":
+            if (activeTab === "vibration") return { max: 2.5, maxLabel: "Batas Atas (2.5Hz)" }
+            break
+        case "CNV-001":
+            if (activeTab === "rpm") return { min: 800, max: 1200, minLabel: "Min Normal (800 RPM)", maxLabel: "Max Normal (1200 RPM)" }
+            if (activeTab === "pressure") return { min: 1.5, max: 4.0, minLabel: "Min Normal (1.5 Bar)", maxLabel: "Max Normal (4.0 Bar)" }
+            break
+        case "CLD-003":
+            if (activeTab === "temperature") return { min: 2.0, max: 4.0, minLabel: "Min Normal (2°C)", maxLabel: "Max Normal (4°C)" }
+            break
+        case "BLR-001":
+            if (activeTab === "temperature") return { min: 90.0, max: 110.0, minLabel: "Min Normal (90°C)", maxLabel: "Max Normal (110°C)" }
+            if (activeTab === "pressure") return { min: 2.0, max: 6.0, minLabel: "Min Normal (2.0 Bar)", maxLabel: "Max Normal (6.0 Bar)" }
+            break
+    }
+    if (activeTab === "efficiency") return { min: 80.0, minLabel: "Min Efisiensi (80%)" }
     return null
 }

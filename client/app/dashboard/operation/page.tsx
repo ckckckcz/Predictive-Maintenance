@@ -86,7 +86,7 @@ export default function OperationsPage() {
     useEffect(() => {
         fetchUserAndRole()
         loadMachines()
-        
+
         const interval = setInterval(loadMachines, 5000)
         return () => clearInterval(interval)
     }, [])
@@ -136,7 +136,7 @@ export default function OperationsPage() {
             })
             toast.success("Mesin baru berhasil ditambahkan!", { id: toastId })
             setIsFormOpen(false)
-            
+
             // Clear form
             setNewMachineName("")
             setNewMachineCode("")
@@ -327,13 +327,12 @@ export default function OperationsPage() {
                                     <div className="space-y-1">
                                         <div className="flex items-center gap-2">
                                             <h3 className="text-md font-bold text-gray-900 truncate max-w-[180px]">{m.name}</h3>
-                                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
-                                                m.status === "ACTIVE" 
-                                                ? "bg-emerald-100 text-emerald-700" 
-                                                : m.status === "MAINTENANCE"
-                                                ? "bg-amber-100 text-amber-700"
-                                                : "bg-gray-100 text-gray-500"
-                                            }`}>
+                                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${m.status === "ACTIVE"
+                                                    ? "bg-emerald-100 text-emerald-700"
+                                                    : m.status === "MAINTENANCE"
+                                                        ? "bg-amber-100 text-amber-700"
+                                                        : "bg-gray-100 text-gray-500"
+                                                }`}>
                                                 {m.status}
                                             </span>
                                         </div>
@@ -377,11 +376,10 @@ export default function OperationsPage() {
                                         variant={isActive ? "default" : "outline"}
                                         onClick={() => handleToggleStatus(m.id, m.status)}
                                         disabled={!isSupervisor}
-                                        className={`h-8 gap-1.5 text-xs font-bold px-3 rounded-lg cursor-pointer transition-all duration-300 ${
-                                            isActive
+                                        className={`h-8 gap-1.5 text-xs font-bold px-3 rounded-lg cursor-pointer transition-all duration-300 ${isActive
                                                 ? "bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-100"
                                                 : "bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-200"
-                                        }`}
+                                            }`}
                                     >
                                         <Power className="h-3 w-3" />
                                         {isActive ? "Matikan" : "Aktifkan"}
@@ -390,7 +388,7 @@ export default function OperationsPage() {
 
                                 {/* Action Buttons */}
                                 <div className="flex items-center gap-2 pt-1">
-                                    <Link href={`/dashboard/audit/${m.id}`} className="flex-1">
+                                    <Link href={`/dashboard/operation/${m.id}`} className="flex-1">
                                         <Button className="w-full h-10 bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5 rounded-xl font-bold shadow-md shadow-emerald-100 cursor-pointer">
                                             <Eye className="h-4 w-4" />
                                             Buka Mesin

@@ -11,6 +11,8 @@ interface Props {
     incidents: Incident[]
     currentPage: number
     setCurrentPage: (fn: (p: number) => number) => void
+    onAcknowledge?: (id: string) => void
+    onResolve?: (id: string) => void
 }
 
 const ITEMS_PER_PAGE = 10
@@ -27,7 +29,7 @@ const STATUS_CLASSES: Record<string, string> = {
     RESOLVED: "bg-emerald-50 text-emerald-600 border-emerald-200",
 }
 
-export function IncidentLogTable({ incidents, currentPage, setCurrentPage }: Props) {
+export function IncidentLogTable({ incidents, currentPage, setCurrentPage, onAcknowledge, onResolve }: Props) {
     const activeIncidents = incidents.filter(i => i.status === "OPEN" || i.status === "IN_PROGRESS")
     const sorted = [...incidents].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     const totalItems = sorted.length
@@ -82,6 +84,7 @@ export function IncidentLogTable({ incidents, currentPage, setCurrentPage }: Pro
                                         <th className="px-6 py-3.5 font-semibold">Deskripsi Anomali</th>
                                         <th className="px-6 py-3.5 font-semibold">Waktu Kejadian</th>
                                         <th className="px-6 py-3.5 font-semibold">Status</th>
+                                        <th className="px-6 py-3.5 font-semibold text-right">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -107,6 +110,41 @@ export function IncidentLogTable({ incidents, currentPage, setCurrentPage }: Pro
                                                 <Badge className={cn("font-extrabold text-[9px] px-2 py-0.5 border rounded-md shadow-none", STATUS_CLASSES[incident.status])}>
                                                     {incident.status}
                                                 </Badge>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                {incident.status === "OPEN" && (
+                                                    <div className="flex gap-1.5 justify-end">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => onAcknowledge?.(incident.id)}
+                                                            className="text-[10px] h-6 px-2.5 border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 hover:text-amber-800 rounded-md font-bold cursor-pointer transition-all duration-150"
+                                                        >
+                                                            Respon
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => onResolve?.(incident.id)}
+                                                            className="text-[10px] h-6 px-2.5 border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 rounded-md font-bold cursor-pointer transition-all duration-150"
+                                                        >
+                                                            Perbaiki
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                                {incident.status === "IN_PROGRESS" && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => onResolve?.(incident.id)}
+                                                        className="text-[10px] h-6 px-2.5 border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 rounded-md font-bold cursor-pointer transition-all duration-150"
+                                                    >
+                                                        Perbaiki
+                                                    </Button>
+                                                )}
+                                                {incident.status === "RESOLVED" && (
+                                                    <span className="text-gray-400 font-semibold text-xs pr-2">Selesai</span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}

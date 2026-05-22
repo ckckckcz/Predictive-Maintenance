@@ -5,7 +5,7 @@ import { api } from "@/lib/api"
 import toast from "react-hot-toast"
 import { Machine, SensorReading, Incident } from "@/types/machine"
 
-export function useMachineDetail(machineId: string) {
+export function useMachineDetail(machineId: string, onIncidentUpdate?: () => void) {
     const [machine, setMachine] = useState<Machine | null>(null)
     const [history, setHistory] = useState<SensorReading[]>([])
     const [incidents, setIncidents] = useState<Incident[]>([])
@@ -46,7 +46,8 @@ export function useMachineDetail(machineId: string) {
         try {
             await api.post(`/api/v1/incidents/${incidentId}/acknowledge`)
             toast.success("Insiden diakui, status: IN_PROGRESS", { id: toastId })
-            loadData()
+            await loadData()
+            onIncidentUpdate?.()
         } catch (err: any) {
             toast.error(`Gagal mengakui insiden: ${err.message}`, { id: toastId })
         }
@@ -57,7 +58,8 @@ export function useMachineDetail(machineId: string) {
         try {
             await api.post(`/api/v1/incidents/${incidentId}/resolve`)
             toast.success("Insiden diselesaikan, status: RESOLVED", { id: toastId })
-            loadData()
+            await loadData()
+            onIncidentUpdate?.()
         } catch (err: any) {
             toast.error(`Gagal menyelesaikan insiden: ${err.message}`, { id: toastId })
         }

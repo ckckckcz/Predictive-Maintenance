@@ -11,7 +11,6 @@ import (
 )
 
 // IncidentService orchestrates the full incident lifecycle:
-// status transitions, audit trail, and push notifications.
 type IncidentService struct {
 	incidents repository.IncidentRepository
 	audits    repository.AuditRepository

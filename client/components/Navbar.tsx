@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Bell, ChevronDown, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Bell, ChevronDown, X, LogOut, LaptopMinimal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
@@ -9,12 +9,34 @@ export default function Navbar() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (typeof window !== "undefined") {
             const token = localStorage.getItem("token");
             setIsAuthenticated(!!token);
+            const userStr = localStorage.getItem("user");
+            if (userStr) {
+                try {
+                    setUser(JSON.parse(userStr));
+                } catch (e) {
+                    console.error("Error parsing user from localStorage:", e);
+                }
+            }
         }
+    }, []);
+
+    // Handle click outside to close dropdown
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsDropdownOpen(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
     const handleLogout = () => {
@@ -23,6 +45,7 @@ export default function Navbar() {
             localStorage.removeItem("refreshToken");
             localStorage.removeItem("user");
             setIsAuthenticated(false);
+            setUser(null);
             toast.success("Berhasil keluar.");
         }
     };
@@ -44,7 +67,7 @@ export default function Navbar() {
                     {/* Center: Navigation (Desktop Only) */}
                     <nav className="hidden md:flex items-center gap-10 text-[14px] text-gray-500 font-medium z-10">
                         <Link href="/dokumentasi"><button className="cursor-pointer hover:text-[#111111] transition-colors">Dokumentasi</button></Link>
-                        <Link href="/download"><button className="cursor-pointer hover:text-[#111111] transition-colors">Download Aplikasi</button></Link>
+                        <Link href="/download"><button className="cursor-pointer hover:text-[#111111] transition-colors">Download App</button></Link>
                     </nav>
 
                     {/* Right: Actions (Desktop Only) */}
@@ -72,19 +95,65 @@ export default function Navbar() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-3">
-                                <Link href="/dashboard">
-                                    <Button className="h-[40px] px-5 rounded-md cursor-pointer text-[14px] font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-all">
-                                        Dashboard
-                                    </Button>
-                                </Link>
-                                <Button
-                                    variant="ghost"
-                                    onClick={handleLogout}
-                                    className="h-[40px] px-3 rounded-md text-[14px] font-medium text-gray-500 hover:text-gray-900 cursor-pointer hover:bg-gray-100"
-                                >
-                                    Logout
-                                </Button>
+                            <div className="flex items-center gap-4">
+                                <div className="relative" ref={menuRef}>
+                                    <button
+                                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                        className="flex items-center gap-3 px-3 hover:bg-gray-50 rounded-lg transition-colors py-1.5 cursor-pointer"
+                                    >
+                                        <Image
+                                            src={`https://api.dicebear.com/9.x/lorelei/svg?seed=${user?.name || "User"}`}
+                                            alt="User"
+                                            width={32}
+                                            height={32}
+                                            className="rounded-full bg-gray-100 ring-2 ring-gray-100"
+                                        />
+
+                                        <div className="hidden lg:block text-left">
+                                            <p className="text-sm font-semibold text-gray-900 leading-none mb-0.5">
+                                                {user?.name || "User"}
+                                            </p>
+
+                                            <p className="text-xs text-gray-500 leading-none">
+                                                {user?.email || "production@greenfields.id"}
+                                            </p>
+                                        </div>
+
+                                        <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`} />
+                                    </button>
+
+                                    {isDropdownOpen && (
+                                        <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50 animate-in fade-in slide-in-from-top-2 origin-top-right">
+                                            <div className="px-4 py-2.5 border-b border-gray-100 lg:hidden bg-gray-50/50 rounded-t-xl mb-1">
+                                                <p className="text-sm font-bold text-gray-900">
+                                                    {user?.name || "User"}
+                                                </p>
+
+                                                <p className="text-xs text-gray-500 truncate">
+                                                    {user?.email || "production@greenfields.id"}
+                                                </p>
+                                            </div>
+
+                                            <Link href="/dashboard" onClick={() => setIsDropdownOpen(false)}>
+                                                <span className="w-[calc(100%-12px)] mx-1.5 flex items-center gap-2.5 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group cursor-pointer">
+                                                    <LaptopMinimal className="h-4 w-4 text-gray-500 transition-transform group-hover:scale-105" />
+                                                    Dashboard
+                                                </span>
+                                            </Link>
+
+                                            <button
+                                                onClick={() => {
+                                                    setIsDropdownOpen(false);
+                                                    handleLogout();
+                                                }}
+                                                className="w-[calc(100%-12px)] mx-1.5 flex items-center gap-2.5 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors group cursor-pointer text-left"
+                                            >
+                                                <LogOut className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
+                                                Logout
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -126,7 +195,7 @@ export default function Navbar() {
                         <span className="hover:text-gray-600 transition-colors block">Dokumentasi</span>
                     </Link>
                     <Link href="/download" onClick={() => setIsMobileMenuOpen(false)}>
-                        <span className="hover:text-gray-600 transition-colors block">Download Aplikasi</span>
+                        <span className="hover:text-gray-600 transition-colors block">Download App</span>
                     </Link>
                 </nav>
 
@@ -134,8 +203,8 @@ export default function Navbar() {
                 <div className="mt-8 flex justify-between items-end pb-4 pt-6 border-t border-gray-100">
                     <div className="flex flex-col gap-4 w-full">
                         {!isAuthenticated ? (
-                            <Link 
-                                href="/login" 
+                            <Link
+                                href="/login"
                                 onClick={() => setIsMobileMenuOpen(false)}
                                 className="text-gray-500 text-xl hover:text-[#111111] underline underline-offset-4 decoration-gray-300 hover:decoration-[#111111] transition-all"
                             >
@@ -143,8 +212,8 @@ export default function Navbar() {
                             </Link>
                         ) : (
                             <div className="flex flex-col gap-3 w-full">
-                                <Link 
-                                    href="/dashboard" 
+                                <Link
+                                    href="/dashboard"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                     className="text-emerald-600 text-xl font-semibold hover:text-emerald-700 transition-all"
                                 >
@@ -155,9 +224,9 @@ export default function Navbar() {
                                         handleLogout();
                                         setIsMobileMenuOpen(false);
                                     }}
-                                    className="text-left text-red-500 text-lg hover:text-red-700 transition-all cursor-pointer"
+                                    className="text-left text-red-500 text-lg font-semibold hover:text-red-700 transition-all cursor-pointer"
                                 >
-                                    Keluar (Logout)
+                                    Keluar
                                 </button>
                             </div>
                         )}

@@ -356,35 +356,169 @@ func (s *GeminiService) getThresholdText(machineType string) string {
 
 // ─── Fallback ─────────────────────────────────────────────────────────────────
 
+func severityValue(sev models.IncidentSeverity) int {
+	switch sev {
+	case models.SeverityCritical:
+		return 4
+	case models.SeverityHigh:
+		return 3
+	case models.SeverityMedium:
+		return 2
+	case models.SeverityLow:
+		return 1
+	default:
+		return 0
+	}
+}
+
 func (s *GeminiService) fallback(ctx context.Context, machineID uuid.UUID, originalErr error) (*models.AIAnalysis, error) {
-	cached, err := s.aiAnalyses.GetLatestByMachine(ctx, machineID)
-	if err == nil && cached != nil {
-		log.Printf("📋 Returning cached AI analysis (age: %v)", time.Since(cached.AnalyzedAt).Round(time.Minute))
-		return cached, nil
+	// First, fetch machine and incidents to determine current state
+	machine, err := s.machines.FindByID(ctx, machineID)
+	if err != nil {
+		return nil, fmt.Errorf("ai fallback: find machine: %w", err)
 	}
 
-	// If no cache exists, generate a safe placeholder instead of failing with 500
-	log.Printf("⚠️ No cached analysis found for machine %s. Generating temporary placeholder.", machineID)
-
-	machine, _ := s.machines.FindByID(ctx, machineID)
 	machineName := "Mesin"
 	if machine != nil {
 		machineName = machine.Name
 	}
 
-	placeholder := &models.AIAnalysis{
-		ID:                uuid.New(),
-		MachineID:         machineID,
-		RiskLevel:         "MEDIUM",
-		RiskScore:         40,
-		HealthPercentage:  60,
-		Trend:             "STABLE",
-		Prediction:        fmt.Sprintf("Analisis AI real-time untuk %s sementara tidak tersedia karena batas kuota API (Rate Limit 429). Menampilkan perkiraan status aman berdasarkan database lokal.", machineName),
-		Recommendation:    "Pantau parameter sensor secara manual dan lakukan re-analisis dalam beberapa menit.",
-		Urgent:            false,
-		AnalyzedAt:        time.Now(),
+	// Fetch incidents
+	incidents, _, err := s.incidents.List(ctx, models.IncidentFilter{
+		MachineID: machineID.String(),
+		Limit:     100,
+		Offset:    0,
+	})
+	if err != nil {
+		incidents = nil
 	}
-	return placeholder, nil
+
+	// Find the latest incident update time
+	var latestIncidentUpdate time.Time
+	for _, inc := range incidents {
+		if inc.UpdatedAt.After(latestIncidentUpdate) {
+			latestIncidentUpdate = inc.UpdatedAt
+		}
+	}
+
+	// Try to get latest cached analysis
+	cached, err := s.aiAnalyses.GetLatestByMachine(ctx, machineID)
+	if err == nil && cached != nil {
+		// A cached analysis is valid if it is a real Gemini analysis (not a fallback placeholder)
+		// AND no incidents have been updated since that analysis was created
+		isPlaceholder := strings.Contains(cached.Prediction, "Analisis AI Sementara") ||
+			strings.Contains(cached.Prediction, "Analisis AI real-time")
+
+		if !isPlaceholder && (latestIncidentUpdate.IsZero() || latestIncidentUpdate.Before(cached.AnalyzedAt)) {
+			log.Printf("📋 Returning cached real AI analysis (age: %v)", time.Since(cached.AnalyzedAt).Round(time.Minute))
+			return cached, nil
+		}
+	}
+
+	// Otherwise, generate a dynamic placeholder based on current database state
+	log.Printf("⚠️ OpenRouter rate-limited or failed. Generating dynamic placeholder for machine %s...", machineID)
+
+	var activeIncidents []*models.IncidentWithDetails
+	for _, inc := range incidents {
+		if inc.Status == models.StatusOpen || inc.Status == models.StatusInProgress {
+			activeIncidents = append(activeIncidents, inc)
+		}
+	}
+
+	var placeholder *models.AIAnalysis
+	if len(activeIncidents) > 0 {
+		maxRiskScore := 0
+		maxSeverity := models.SeverityLow
+		var mainIncident *models.IncidentWithDetails
+
+		for _, inc := range activeIncidents {
+			if inc.RiskScore > maxRiskScore {
+				maxRiskScore = inc.RiskScore
+				mainIncident = inc
+			}
+			// Compare severity
+			if severityValue(inc.Severity) > severityValue(maxSeverity) {
+				maxSeverity = inc.Severity
+				if mainIncident == nil || inc.RiskScore == maxRiskScore {
+					mainIncident = inc
+				}
+			}
+		}
+
+		if maxRiskScore == 0 {
+			switch maxSeverity {
+			case models.SeverityCritical:
+				maxRiskScore = 90
+			case models.SeverityHigh:
+				maxRiskScore = 70
+			case models.SeverityMedium:
+				maxRiskScore = 45
+			default:
+				maxRiskScore = 20
+			}
+		}
+
+		healthPercentage := 100 - maxRiskScore
+		if healthPercentage < 0 {
+			healthPercentage = 0
+		}
+
+		riskLevel := string(maxSeverity)
+		trend := "DECREASING"
+		if maxSeverity == models.SeverityCritical {
+			trend = "SPIKE"
+		}
+
+		prediction := fmt.Sprintf("Analisis AI Sementara: Terdeteksi %d insiden aktif pada %s. Insiden utama: \"%s\" dengan tingkat keparahan %s. Sensor menunjukkan tanda kegagalan atau anomali.", len(activeIncidents), machineName, mainIncident.Title, maxSeverity)
+		recommendation := fmt.Sprintf("Segera tindak lanjuti insiden \"%s\". Lakukan inspeksi fisik pada mesin, perbaiki komponen yang bermasalah, dan klik 'Perbaiki' pada log insiden.", mainIncident.Title)
+		urgent := maxSeverity == models.SeverityCritical || maxSeverity == models.SeverityHigh
+
+		var failureHours *int
+		if maxSeverity == models.SeverityCritical {
+			fh := 4
+			failureHours = &fh
+		} else if maxSeverity == models.SeverityHigh {
+			fh := 24
+			failureHours = &fh
+		} else if maxSeverity == models.SeverityMedium {
+			fh := 72
+			failureHours = &fh
+		}
+
+		placeholder = &models.AIAnalysis{
+			MachineID:             machineID,
+			RiskLevel:             riskLevel,
+			RiskScore:             maxRiskScore,
+			HealthPercentage:      healthPercentage,
+			Trend:                 trend,
+			Prediction:            prediction,
+			Recommendation:        recommendation,
+			EstimatedFailureHours: failureHours,
+			Urgent:                urgent,
+		}
+	} else {
+		placeholder = &models.AIAnalysis{
+			MachineID:             machineID,
+			RiskLevel:             "LOW",
+			RiskScore:             0,
+			HealthPercentage:      100,
+			Trend:                 "STABLE",
+			Prediction:            fmt.Sprintf("Analisis AI Sementara: %s dalam kondisi optimal dan stabil. Tidak ada insiden aktif yang terdeteksi pada sistem.", machineName),
+			Recommendation:        "Pertahankan jadwal pemeliharaan preventif rutin dan terus pantau pembacaan sensor secara berkala.",
+			EstimatedFailureHours: nil,
+			Urgent:                false,
+		}
+	}
+
+	saved, err := s.aiAnalyses.Save(ctx, placeholder)
+	if err != nil {
+		log.Printf("⚠️ Failed to save dynamic fallback analysis: %v", err)
+		placeholder.ID = uuid.New()
+		placeholder.AnalyzedAt = time.Now()
+		return placeholder, nil
+	}
+
+	return saved, nil
 }
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────

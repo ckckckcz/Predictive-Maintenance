@@ -295,9 +295,9 @@ export function ProductionTable() {
                                     // Get highest severity incident if multiple
                                     const highestSeverityIncident = hasActiveIncident
                                         ? [...activeIncidents].sort((a, b) => {
-                                              const severities = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 }
-                                              return severities[b.severity] - severities[a.severity]
-                                          })[0]
+                                            const severities = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 }
+                                            return severities[b.severity] - severities[a.severity]
+                                        })[0]
                                         : null
 
                                     return (
@@ -369,7 +369,7 @@ export function ProductionTable() {
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={() => router.push(`/dashboard/audit/${m.id}`)}
+                                                    onClick={() => router.push(`/dashboard/operation/${m.id}`)}
                                                     className="h-8 px-3 font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50/70 border border-transparent hover:border-emerald-200/40 rounded-lg cursor-pointer"
                                                 >
                                                     <Eye className="h-3.5 w-3.5 mr-1" />

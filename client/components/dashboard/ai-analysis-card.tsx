@@ -113,10 +113,14 @@ function AnalysisSkeleton() {
 
 interface AIAnalysisCardProps {
     machineId: string
+    analysis: AIAnalysis | null
+    isLoading: boolean
+    isStale: boolean
+    error: string | null
+    reanalyze: () => Promise<void>
 }
 
-export function AIAnalysisCard({ machineId }: AIAnalysisCardProps) {
-    const { analysis, isLoading, isStale, error, reanalyze } = useAIAnalysis(machineId)
+export function AIAnalysisCard({ machineId, analysis, isLoading, isStale, error, reanalyze }: AIAnalysisCardProps) {
     const [reanalyzing, setReanalyzing] = useState(false)
 
     const handleReanalyze = async () => {
