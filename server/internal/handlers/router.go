@@ -14,16 +14,17 @@ import (
 
 // Dependencies groups all wired-up instances needed by the router.
 type Dependencies struct {
-	Cfg         *config.Config
-	Pool        *pgxpool.Pool // used for live DB health check on /api
-	AuthSvc     *services.AuthService
-	MachineSvc  *services.MachineService
-	SensorSvc   *services.SensorService
-	IncidentSvc *services.IncidentService
-	NotifySvc   *services.NotificationService
-	GeminiSvc   *services.GeminiService
-	UserRepo    repository.UserRepository
-	AuditRepo   repository.AuditRepository
+	Cfg          *config.Config
+	Pool         *pgxpool.Pool // used for live DB health check on /api
+	AuthSvc      *services.AuthService
+	MachineSvc   *services.MachineService
+	SensorSvc    *services.SensorService
+	IncidentSvc  *services.IncidentService
+	NotifySvc    *services.NotificationService
+	GeminiSvc    *services.GeminiService
+	UserRepo     repository.UserRepository
+	AuditRepo    repository.AuditRepository
+	SimulatorSvc *services.SimulatorService
 }
 
 func NewRouter(deps Dependencies) *gin.Engine {
@@ -42,7 +43,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	// ── Instantiate handlers ─────────────────────────────────────────────────
 	authH     := NewAuthHandler(deps.AuthSvc)
 	userH     := NewUserHandler(deps.AuthSvc, deps.UserRepo)
-	machineH  := NewMachineHandler(deps.MachineSvc, deps.SensorSvc)
+	machineH  := NewMachineHandler(deps.MachineSvc, deps.SensorSvc, deps.SimulatorSvc)
 	sensorH   := NewSensorHandler(deps.SensorSvc)
 	incidentH := NewIncidentHandler(deps.IncidentSvc)
 	auditH    := NewAuditHandler(deps.AuditRepo)
@@ -86,6 +87,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		auth.GET("/machines/:id/sensors/history", machineH.GetSensorHistory)
 		auth.GET("/machines/:id/analysis", analysisH.GetAnalysis)
 		auth.POST("/machines/:id/analyze", analysisH.ForceAnalyze)
+		auth.POST("/machines/:id/simulate-anomaly", machineH.SimulateAnomaly)
 
 		// Incidents (read/write: both roles)
 		auth.GET("/incidents/stats", incidentH.GetStats)

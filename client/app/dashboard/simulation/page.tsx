@@ -80,6 +80,7 @@ export default function SimulationDashboard() {
     const [isMounted, setIsMounted] = useState(false)
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState<string>("efficiency")
+    const [simulating, setSimulating] = useState(false)
 
     // Get current user and role
     useEffect(() => {
@@ -203,6 +204,20 @@ export default function SimulationDashboard() {
             if (selectedMachineId) fetchSelectedMachineData(selectedMachineId)
         } catch (err: any) {
             toast.error(`Gagal menyelesaikan insiden: ${err.message}`, { id: toastId })
+        }
+    }
+
+    const handleSimulateAnomaly = async (machineId: string) => {
+        setSimulating(true)
+        const toastId = toast.loading("Mensimulasikan anomali sensor...")
+        try {
+            await api.post(`/api/v1/machines/${machineId}/simulate-anomaly`)
+            toast.success("Anomali berhasil disimulasikan! Sensor mendeteksi kegagalan.", { id: toastId })
+            if (selectedMachineId) fetchSelectedMachineData(selectedMachineId)
+        } catch (err: any) {
+            toast.error(`Gagal mensimulasikan anomali: ${err.message}`, { id: toastId })
+        } finally {
+            setSimulating(false)
         }
     }
 
@@ -486,9 +501,21 @@ export default function SimulationDashboard() {
                                             Tipe: <span className="font-semibold text-gray-700">{selectedMachine.type}</span> | Area: <span className="font-semibold text-gray-700">{selectedMachine.location || "Area A"}</span>
                                         </CardDescription>
                                     </div>
-                                    <div className="text-xs text-gray-500 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
-                                        <Info className="h-4 w-4 text-green-700 inline mr-1" />
-                                        Menerima log baru setiap 15 detik secara background.
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        {selectedMachine.status === "ACTIVE" && (
+                                            <Button
+                                                onClick={() => handleSimulateAnomaly(selectedMachine.id)}
+                                                disabled={simulating}
+                                                className="bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-2 rounded-xl transition-all duration-200 shadow-sm text-xs cursor-pointer h-9 px-3.5"
+                                            >
+                                                <ShieldAlert className={`h-4 w-4 ${simulating ? "animate-spin" : ""}`} />
+                                                {simulating ? "Simulating Anomaly..." : "Simulasikan Anomali"}
+                                            </Button>
+                                        )}
+                                        <div className="text-xs text-gray-500 bg-gray-50 p-2.5 rounded-lg border border-gray-100 flex items-center gap-1">
+                                            <Info className="h-4 w-4 text-green-700 inline shrink-0" />
+                                            Menerima log baru setiap 15 detik secara background.
+                                        </div>
                                     </div>
                                 </CardHeader>
                                 
@@ -670,8 +697,9 @@ export default function SimulationDashboard() {
                                                                 <ChartTooltip
                                                                     labelClassName="text-slate-900 font-bold"
                                                                     labelFormatter={(label) => new Date(label).toLocaleString("id-ID")}
-                                                                    formatter={(value: any, name: string) => {
-                                                                        const formattedName = name.charAt(0).toUpperCase() + name.slice(1)
+                                                                    formatter={(value: any, name: any) => {
+                                                                        const nameStr = String(name || "")
+                                                                        const formattedName = nameStr.charAt(0).toUpperCase() + nameStr.slice(1)
                                                                         return [value, formattedName]
                                                                     }}
                                                                 />

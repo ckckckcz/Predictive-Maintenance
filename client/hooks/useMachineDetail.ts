@@ -82,5 +82,6 @@ export function useMachineDetail(machineId: string) {
         activeIncidents: incidents.filter(i => i.status === "OPEN" || i.status === "IN_PROGRESS"),
         latestReading: history.length > 0 ? history[history.length - 1] : null,
         timeFrame, setTimeFrame,
+        refresh: loadData,
     }
 }

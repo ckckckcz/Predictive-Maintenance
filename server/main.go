@@ -77,25 +77,26 @@ func main() {
 	geminiSvc   := services.NewGeminiService(cfg.OpenRouter.APIKey, cfg.OpenRouter.Model, machineRepo, sensorRepo, incidentRepo, aiRepo)
 
 	// ── HTTP Router ───────────────────────────────────────────────────────────
-	router := handlers.NewRouter(handlers.Dependencies{
-		Cfg:         cfg,
-		Pool:        pool,
-		AuthSvc:     authSvc,
-		MachineSvc:  machineSvc,
-		SensorSvc:   sensorSvc,
-		IncidentSvc: incidentSvc,
-		NotifySvc:   notifySvc,
-		GeminiSvc:   geminiSvc,
-		UserRepo:    userRepo,
-		AuditRepo:   auditRepo,
-	})
-
 	// ── Simulator & Background Jobs ────────────────────────────────────────────
 	simSvc := services.NewSimulatorService(machineRepo, sensorSvc, geminiSvc)
 	simCtx, simCancel := context.WithCancel(context.Background())
 
 	// Start the IoT simulator ticker (every 15 seconds)
 	simSvc.Start(simCtx, 15*time.Second)
+
+	router := handlers.NewRouter(handlers.Dependencies{
+		Cfg:          cfg,
+		Pool:         pool,
+		AuthSvc:      authSvc,
+		MachineSvc:   machineSvc,
+		SensorSvc:    sensorSvc,
+		IncidentSvc:  incidentSvc,
+		NotifySvc:    notifySvc,
+		GeminiSvc:    geminiSvc,
+		UserRepo:     userRepo,
+		AuditRepo:    auditRepo,
+		SimulatorSvc: simSvc,
+	})
 
 	// Start the periodic risk score updater ticker (every 2 minutes)
 	go func() {

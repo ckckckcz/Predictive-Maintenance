@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ChevronLeft, RefreshCw, AlertTriangle } from "lucide-react"
+import { ChevronLeft, RefreshCw, AlertTriangle, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -13,17 +13,34 @@ import { MachineTelemetryChart } from "@/components/dashboard/machine-telemetry-
 import { MachineSensorCard } from "@/components/dashboard/machine-sensor-card"
 import { IncidentLogTable } from "@/components/dashboard/incident-log-table"
 import { AIAnalysisCard } from "@/components/dashboard/ai-analysis-card"
+import toast from "react-hot-toast"
+import { api } from "@/lib/api"
 
 export default function MachineDetailPage() {
     const { id } = useParams()
     const machineId = id as string
     const [currentPage, setCurrentPage] = useState(1)
+    const [simulating, setSimulating] = useState(false)
 
     const {
         machine, history, incidents, loading,
         activeTab, setActiveTab, latestReading, activeIncidents,
-        timeFrame, setTimeFrame,
+        timeFrame, setTimeFrame, refresh,
     } = useMachineDetail(machineId)
+
+    const handleSimulateAnomaly = async () => {
+        setSimulating(true)
+        const toastId = toast.loading("Mensimulasikan anomali sensor...")
+        try {
+            await api.post(`/api/v1/machines/${machineId}/simulate-anomaly`)
+            toast.success("Anomali berhasil disimulasikan! Sensor mendeteksi kegagalan.", { id: toastId })
+            refresh()
+        } catch (err: any) {
+            toast.error(`Gagal mensimulasikan anomali: ${err.message}`, { id: toastId })
+        } finally {
+            setSimulating(false)
+        }
+    }
 
     if (loading) {
         return (
@@ -61,28 +78,40 @@ export default function MachineDetailPage() {
                     <span className="text-gray-300">/</span>
                     <span className="text-gray-900 font-medium">{machine.code}</span>
                 </div>
-                <div className="flex items-start gap-4">
-                    <Link href="/dashboard">
-                        <Button variant="outline" size="icon" className="h-9 w-9 bg-white border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer">
-                            <ChevronLeft className="h-5 w-5 text-slate-600" />
-                        </Button>
-                    </Link>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-2xl font-bold text-gray-900">{machine.name}</h1>
-                            <Badge className={cn(
-                                "font-bold text-[10px] py-0.5 px-2.5 rounded-full uppercase tracking-wider border-none shadow-none text-white",
-                                machine.status === "ACTIVE" && "bg-emerald-600",
-                                machine.status === "MAINTENANCE" && "bg-amber-500",
-                                machine.status === "INACTIVE" && "bg-slate-400"
-                            )}>
-                                {machine.status}
-                            </Badge>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                        <Link href="/dashboard">
+                            <Button variant="outline" size="icon" className="h-9 w-9 bg-white border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer">
+                                <ChevronLeft className="h-5 w-5 text-slate-600" />
+                            </Button>
+                        </Link>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-2xl font-bold text-gray-900">{machine.name}</h1>
+                                <Badge className={cn(
+                                    "font-bold text-[10px] py-0.5 px-2.5 rounded-full uppercase tracking-wider border-none shadow-none text-white",
+                                    machine.status === "ACTIVE" && "bg-emerald-600",
+                                    machine.status === "MAINTENANCE" && "bg-amber-500",
+                                    machine.status === "INACTIVE" && "bg-slate-400"
+                                )}>
+                                    {machine.status}
+                                </Badge>
+                            </div>
+                            <p className="text-sm text-slate-500 font-medium mt-0.5">
+                                {machine.code} <span className="text-slate-300 mx-1">•</span> {machine.location || "Lokasi tidak diatur"}
+                            </p>
                         </div>
-                        <p className="text-sm text-slate-500 font-medium mt-0.5">
-                            {machine.code} <span className="text-slate-300 mx-1">•</span> {machine.location || "Lokasi tidak diatur"}
-                        </p>
                     </div>
+                    {machine.status === "ACTIVE" && (
+                        <Button
+                            onClick={handleSimulateAnomaly}
+                            disabled={simulating}
+                            className="bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-2 rounded-xl transition-all duration-200 shadow-sm md:self-center cursor-pointer"
+                        >
+                            <ShieldAlert className={cn("h-4 w-4", simulating && "animate-spin")} />
+                            {simulating ? "Simulating Anomaly..." : "Simulasikan Anomali"}
+                        </Button>
+                    )}
                 </div>
             </div>
 

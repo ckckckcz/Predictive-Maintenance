@@ -11,12 +11,13 @@ import (
 
 // MachineHandler manages machine endpoints.
 type MachineHandler struct {
-	machines *services.MachineService
-	sensors  *services.SensorService
+	machines  *services.MachineService
+	sensors   *services.SensorService
+	simulator *services.SimulatorService
 }
 
-func NewMachineHandler(machines *services.MachineService, sensors *services.SensorService) *MachineHandler {
-	return &MachineHandler{machines: machines, sensors: sensors}
+func NewMachineHandler(machines *services.MachineService, sensors *services.SensorService, simulator *services.SimulatorService) *MachineHandler {
+	return &MachineHandler{machines: machines, sensors: sensors, simulator: simulator}
 }
 
 // GET /api/v1/machines
@@ -115,4 +116,20 @@ func (h *MachineHandler) GetSensorHistory(c *gin.Context) {
 	}
 
 	utils.JSON(c, http.StatusOK, readings)
+}
+
+// POST /api/v1/machines/:id/simulate-anomaly
+func (h *MachineHandler) SimulateAnomaly(c *gin.Context) {
+	id, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+
+	result, svcErr := h.simulator.SimulateAnomalyForMachine(c.Request.Context(), id)
+	if svcErr != nil {
+		utils.InternalError(c, "Gagal mensimulasikan anomali: "+svcErr.Error())
+		return
+	}
+
+	utils.JSON(c, http.StatusOK, result)
 }

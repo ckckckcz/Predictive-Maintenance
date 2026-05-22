@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math/rand"
 	"time"
@@ -58,7 +59,7 @@ func (s *SimulatorService) runSimulationStep(ctx context.Context) {
 			continue
 		}
 
-		req := s.generateReading(m.ID, m.Code)
+		req := s.generateReading(m.ID, m.Code, false)
 		if req == nil {
 			continue
 		}
@@ -81,13 +82,13 @@ func (s *SimulatorService) runSimulationStep(ctx context.Context) {
 	}
 }
 
-func (s *SimulatorService) generateReading(machineID uuid.UUID, code string) *models.CreateSensorReadingRequest {
+func (s *SimulatorService) generateReading(machineID uuid.UUID, code string, forceAnomaly bool) *models.CreateSensorReadingRequest {
 	req := &models.CreateSensorReadingRequest{
 		MachineID: machineID,
 	}
 
-	// 15% chance of generating an anomaly
-	isAnomaly := s.rng.Float64() < 0.15
+	// Force anomaly if requested, otherwise generate healthy telemetry
+	isAnomaly := forceAnomaly
 
 	// Efficiency: normal 80-99%, anomaly 40-79%
 	var efficiency float64
@@ -221,4 +222,39 @@ func (s *SimulatorService) generateReading(machineID uuid.UUID, code string) *mo
 	}
 
 	return req
+}
+
+// SimulateAnomalyForMachine triggers an anomaly sensor reading ingestion and AI analysis for a machine.
+func (s *SimulatorService) SimulateAnomalyForMachine(ctx context.Context, machineID uuid.UUID) (*models.SensorIngestionResult, error) {
+	m, err := s.machineRepo.FindByID(ctx, machineID)
+	if err != nil {
+		return nil, err
+	}
+
+	if m.Status != models.MachineStatusActive {
+		return nil, fmt.Errorf("mesin sedang tidak aktif (status: %s)", m.Status)
+	}
+
+	// Force generate anomaly reading
+	req := s.generateReading(m.ID, m.Code, true)
+	if req == nil {
+		return nil, fmt.Errorf("kode mesin tidak didukung oleh simulator: %s", m.Code)
+	}
+
+	result, err := s.sensorSvc.IngestReading(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// If an anomaly was detected, trigger AI analysis asynchronously (non-blocking)
+	if result != nil && result.Reading != nil && result.Reading.IsAnomaly && s.geminiSvc != nil {
+		mID := m.ID
+		go func() {
+			if _, err := s.geminiSvc.Analyze(context.Background(), mID); err != nil {
+				log.Printf("⚠️ Async Gemini analysis failed for %s: %v", m.Code, err)
+			}
+		}()
+	}
+
+	return result, nil
 }
