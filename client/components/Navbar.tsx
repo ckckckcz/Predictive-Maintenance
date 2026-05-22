@@ -1,15 +1,31 @@
-"use client";
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bell, ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
+import toast from "react-hot-toast";
 
 export default function Navbar() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const token = localStorage.getItem("token");
+            setIsAuthenticated(!!token);
+        }
+    }, []);
+
+    const handleLogout = () => {
+        if (typeof window !== "undefined") {
+            localStorage.removeItem("token");
+            localStorage.removeItem("refreshToken");
+            localStorage.removeItem("user");
+            setIsAuthenticated(false);
+            toast.success("Berhasil keluar.");
+        }
+    };
 
     return (
         <>
@@ -32,17 +48,18 @@ export default function Navbar() {
                     </nav>
 
                     {/* Right: Actions (Desktop Only) */}
-                    <div className="hidden md:flex items-center relative">
+                    <div className="hidden md:flex items-center relative gap-3">
                         {!isAuthenticated ? (
                             <div className="flex items-center gap-2">
                                 <div className="relative">
-                                    <Button
-                                        variant="outline"
-                                        className="h-[40px] px-5 rounded-md cursor-pointer text-[14px] font-medium hover:bg-gray-200 cursor-pointer transition-all relative z-10"
-                                        onClick={() => setIsAuthenticated(true)}
-                                    >
-                                        Login
-                                    </Button>
+                                    <Link href="/login">
+                                        <Button
+                                            variant="outline"
+                                            className="h-[40px] px-5 rounded-md cursor-pointer text-[14px] font-medium hover:bg-gray-200 cursor-pointer transition-all relative z-10"
+                                        >
+                                            Login
+                                        </Button>
+                                    </Link>
                                     <div className="hidden lg:flex absolute left-1/2 -translate-x-[65%] -bottom-[50px] pointer-events-none flex-row items-start z-40">
                                         <span className="text-green-700 font-serif italic text-[16px] whitespace-nowrap font-medium -rotate-[3deg] mt-[20px] mr-1">
                                             I'm ready to work
@@ -55,24 +72,20 @@ export default function Navbar() {
                                 </div>
                             </div>
                         ) : (
-                            <>
-                                <div className="bg-gray-50 border border-gray-100 rounded-full h-[46px] flex items-center px-[6px] gap-3 shadow-sm">
-                                    <button
-                                        className="pl-2 relative outline-none flex items-center justify-center p-1 rounded-full hover:bg-gray-200 transition-colors"
-                                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                    >
-                                        <Bell className="w-[18px] h-[18px] text-[#333]" strokeWidth={2.5} />
-                                        <div className="absolute top-[3px] right-[4px] w-[6px] h-[6px] bg-[#2563eb] rounded-full border border-gray-50" />
-                                    </button>
-                                    <div
-                                        className="w-[34px] h-[34px] rounded-full overflow-hidden cursor-pointer bg-gray-200 border-2 border-transparent hover:border-[#2563eb] transition-colors"
-                                        onClick={() => setIsAuthenticated(false)}
-                                        title="Logout Demo"
-                                    >
-                                        <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop" alt="avatar" className="w-full h-full object-cover" />
-                                    </div>
-                                </div>
-                            </>
+                            <div className="flex items-center gap-3">
+                                <Link href="/dashboard">
+                                    <Button className="h-[40px] px-5 rounded-md cursor-pointer text-[14px] font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-all">
+                                        Dashboard
+                                    </Button>
+                                </Link>
+                                <Button
+                                    variant="ghost"
+                                    onClick={handleLogout}
+                                    className="h-[40px] px-3 rounded-md text-[14px] font-medium text-gray-500 hover:text-gray-900 cursor-pointer hover:bg-gray-100"
+                                >
+                                    Logout
+                                </Button>
+                            </div>
                         )}
                     </div>
 
@@ -109,17 +122,45 @@ export default function Navbar() {
 
                 {/* Middle: Large Navigation Links */}
                 <nav className="flex flex-col gap-6 text-[36px] font-medium text-[#111111] flex-1 overflow-y-auto mt-4">
-                    <button className="text-left hover:text-gray-600 transition-colors">Dokumentasi</button>
-                    <button className="text-left hover:text-gray-600 transition-colors">Download Aplikasi</button>
+                    <Link href="/dokumentasi" onClick={() => setIsMobileMenuOpen(false)}>
+                        <span className="hover:text-gray-600 transition-colors block">Dokumentasi</span>
+                    </Link>
+                    <Link href="/download" onClick={() => setIsMobileMenuOpen(false)}>
+                        <span className="hover:text-gray-600 transition-colors block">Download Aplikasi</span>
+                    </Link>
                 </nav>
 
-                {/* Bottom: Contact & Social Info */}
+                {/* Bottom: Auth Actions (Mobile Only) */}
                 <div className="mt-8 flex justify-between items-end pb-4 pt-6 border-t border-gray-100">
-                    {/* Left: Contact Info */}
-                    <div className="flex flex-col gap-2">
-                        <Link href="/login" className="text-gray-500 text-xl hover:text-[#111111] underline underline-offset-4 decoration-gray-300 hover:decoration-[#111111] transition-all">
-                            Masuk
-                        </Link>
+                    <div className="flex flex-col gap-4 w-full">
+                        {!isAuthenticated ? (
+                            <Link 
+                                href="/login" 
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className="text-gray-500 text-xl hover:text-[#111111] underline underline-offset-4 decoration-gray-300 hover:decoration-[#111111] transition-all"
+                            >
+                                Masuk
+                            </Link>
+                        ) : (
+                            <div className="flex flex-col gap-3 w-full">
+                                <Link 
+                                    href="/dashboard" 
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                    className="text-emerald-600 text-xl font-semibold hover:text-emerald-700 transition-all"
+                                >
+                                    Dashboard Panel
+                                </Link>
+                                <button
+                                    onClick={() => {
+                                        handleLogout();
+                                        setIsMobileMenuOpen(false);
+                                    }}
+                                    className="text-left text-red-500 text-lg hover:text-red-700 transition-all cursor-pointer"
+                                >
+                                    Keluar (Logout)
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

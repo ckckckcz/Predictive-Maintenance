@@ -6,7 +6,7 @@ import Footer from "./Footer";
 
 export default function ClientWrapper({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const isAuthPage = pathname === "/login";
+    const isAuthPage = pathname === "/login" || pathname === "/dashboard" || pathname === "/dashboard/audit" || pathname === "/dashboard/operation" || pathname === "/dashboard/simulation" || pathname.includes("/dashboard/audit/");
 
     const hideLayout = isAuthPage;
 

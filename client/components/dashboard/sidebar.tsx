@@ -11,7 +11,8 @@ import {
     ChevronDown,
     ChevronRight,
     Cog,
-    Clipboard
+    Clipboard,
+    Activity
 } from "lucide-react"
 
 import { useState } from "react"
@@ -95,6 +96,21 @@ export function Sidebar({ className }: { className?: string }) {
                         >
                             <Clipboard className="mr-3 h-4 w-4" />
                             Audit
+                        </span>
+                    </Link>
+
+                    {/* Simulation */}
+                    <Link href="/dashboard/simulation">
+                        <span
+                            className={cn(
+                                "flex items-center rounded-lg px-3 py-2 mb-1 text-sm font-semibold cursor-pointer transition-colors hover:bg-green-50 hover:text-green-700",
+                                pathname === "/dashboard/simulation"
+                                    ? "bg-green-50 text-green-700"
+                                    : "text-gray-700"
+                            )}
+                        >
+                            <Activity className="mr-3 h-4 w-4" />
+                            Simulation
                         </span>
                     </Link>
 
