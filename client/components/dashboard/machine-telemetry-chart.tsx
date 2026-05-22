@@ -9,6 +9,7 @@ import {
 } from "recharts"
 import { ChartPoint } from "@/utils/chartUtils"
 import { SensorReading } from "@/types/machine"
+import { cn } from "@/lib/utils"
 
 interface Props {
     chartData: ChartPoint[]
@@ -17,6 +18,8 @@ interface Props {
     latestReading: SensorReading | null
     hasActiveIncident: boolean
     threshold: { value: number; label: string; color: string } | null
+    timeFrame: "realtime" | "hourly"
+    setTimeFrame: (v: "realtime" | "hourly") => void
 }
 
 const TABS = [
@@ -27,7 +30,16 @@ const TABS = [
     { value: "efficiency", label: "Efisiensi (%)", icon: Zap },
 ]
 
-export function MachineTelemetryChart({ chartData, activeTab, setActiveTab, latestReading, hasActiveIncident, threshold }: Props) {
+export function MachineTelemetryChart({
+    chartData,
+    activeTab,
+    setActiveTab,
+    latestReading,
+    hasActiveIncident,
+    threshold,
+    timeFrame,
+    setTimeFrame,
+}: Props) {
     const mainColor = hasActiveIncident ? "#991b1b" : "#059669"
     const predictiveColor = hasActiveIncident ? "#dc2626" : "#0d9488"
     const rangeFill = hasActiveIncident ? "#fee2e2" : "#ccfbf1"
@@ -37,14 +49,43 @@ export function MachineTelemetryChart({ chartData, activeTab, setActiveTab, late
     return (
         <Card className="border-gray-200/80 shadow-md rounded-xl bg-white/70 backdrop-blur-md overflow-hidden">
             <CardHeader className="p-6 pb-2">
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                        <Activity className="h-4 w-4 text-emerald-600" />
-                        <h2 className="text-lg font-bold text-gray-900">Grafik Telemetri Real-Time</h2>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                            <Activity className="h-4 w-4 text-emerald-600" />
+                            <h2 className="text-lg font-bold text-gray-900">
+                                {timeFrame === "realtime" ? "Grafik Telemetri Real-Time" : "Grafik Telemetri Per Jam"}
+                            </h2>
+                        </div>
+                        <CardDescription className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                            Histori & Batas Normal Sensor
+                        </CardDescription>
                     </div>
-                    <CardDescription className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                        Histori & Batas Normal Sensor
-                    </CardDescription>
+                    {/* Interval Toggle */}
+                    <div className="flex items-center gap-1 bg-gray-100/70 p-0.5 border border-slate-200/40 rounded-lg max-w-fit self-start sm:self-auto">
+                        <button
+                            onClick={() => setTimeFrame("realtime")}
+                            className={cn(
+                                "px-3 py-1 text-xs font-bold rounded-md transition-all duration-150 cursor-pointer border border-transparent",
+                                timeFrame === "realtime"
+                                    ? "bg-white text-emerald-700 shadow-sm border-slate-200/50"
+                                    : "text-slate-500 hover:text-slate-800"
+                            )}
+                        >
+                            Real-Time
+                        </button>
+                        <button
+                            onClick={() => setTimeFrame("hourly")}
+                            className={cn(
+                                "px-3 py-1 text-xs font-bold rounded-md transition-all duration-150 cursor-pointer border border-transparent",
+                                timeFrame === "hourly"
+                                    ? "bg-white text-emerald-700 shadow-sm border-slate-200/50"
+                                    : "text-slate-500 hover:text-slate-800"
+                            )}
+                        >
+                            Per Jam
+                        </button>
+                    </div>
                 </div>
                 <div className="mt-4">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

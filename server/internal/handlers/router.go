@@ -21,6 +21,7 @@ type Dependencies struct {
 	SensorSvc   *services.SensorService
 	IncidentSvc *services.IncidentService
 	NotifySvc   *services.NotificationService
+	GeminiSvc   *services.GeminiService
 	UserRepo    repository.UserRepository
 	AuditRepo   repository.AuditRepository
 }
@@ -46,6 +47,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	incidentH := NewIncidentHandler(deps.IncidentSvc)
 	auditH    := NewAuditHandler(deps.AuditRepo)
 	notifyH   := NewNotificationHandler(deps.NotifySvc)
+	analysisH := NewAnalysisHandler(deps.GeminiSvc)
 
 	// ── /health — liveness probe ─────────────────────────────────────────────
 	r.GET("/health", health)
@@ -82,6 +84,8 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		auth.GET("/machines/:id", machineH.GetMachine)
 		auth.GET("/machines/:id/sensors/latest", machineH.GetLatestSensor)
 		auth.GET("/machines/:id/sensors/history", machineH.GetSensorHistory)
+		auth.GET("/machines/:id/analysis", analysisH.GetAnalysis)
+		auth.POST("/machines/:id/analyze", analysisH.ForceAnalyze)
 
 		// Incidents (read/write: both roles)
 		auth.GET("/incidents/stats", incidentH.GetStats)

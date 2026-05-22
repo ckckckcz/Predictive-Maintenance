@@ -12,12 +12,13 @@ export function useMachineDetail(machineId: string) {
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState<string>("efficiency")
     const [userRole, setUserRole] = useState<string | null>(null)
-
+    const [timeFrame, setTimeFrame] = useState<"realtime" | "hourly">("hourly")
+ 
     const loadData = async () => {
         try {
             const [mDetails, mHistory, mIncidents] = await Promise.all([
                 api.get<any, Machine>(`/api/v1/machines/${machineId}`),
-                api.get<any, SensorReading[]>(`/api/v1/machines/${machineId}/sensors/history?limit=30`),
+                api.get<any, SensorReading[]>(`/api/v1/machines/${machineId}/sensors/history?limit=300`),
                 api.get<any, Incident[]>(`/api/v1/incidents?machine_id=${machineId}&limit=100`)
             ])
             setMachine(mDetails)
@@ -26,7 +27,7 @@ export function useMachineDetail(machineId: string) {
             )
             setHistory(sorted)
             setIncidents(mIncidents || [])
-            if (mDetails) {
+            if (mDetails && !machine) {
                 const tabMap: Record<string, string> = {
                     "PST-001": "temperature", "CLD-003": "temperature",
                     "FLL-002": "vibration", "CNV-001": "rpm", "BLR-001": "pressure"
@@ -80,5 +81,6 @@ export function useMachineDetail(machineId: string) {
         handleAcknowledge, handleResolve,
         activeIncidents: incidents.filter(i => i.status === "OPEN" || i.status === "IN_PROGRESS"),
         latestReading: history.length > 0 ? history[history.length - 1] : null,
+        timeFrame, setTimeFrame,
     }
 }

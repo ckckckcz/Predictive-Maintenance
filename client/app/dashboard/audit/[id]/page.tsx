@@ -12,6 +12,7 @@ import { buildChartData, getThreshold } from "@/utils/chartUtils"
 import { MachineTelemetryChart } from "@/components/dashboard/machine-telemetry-chart"
 import { MachineSensorCard } from "@/components/dashboard/machine-sensor-card"
 import { IncidentLogTable } from "@/components/dashboard/incident-log-table"
+import { AIAnalysisCard } from "@/components/dashboard/ai-analysis-card"
 
 export default function MachineDetailPage() {
     const { id } = useParams()
@@ -21,6 +22,7 @@ export default function MachineDetailPage() {
     const {
         machine, history, incidents, loading,
         activeTab, setActiveTab, latestReading, activeIncidents,
+        timeFrame, setTimeFrame,
     } = useMachineDetail(machineId)
 
     if (loading) {
@@ -46,7 +48,7 @@ export default function MachineDetailPage() {
     }
 
     const hasActiveIncident = activeIncidents.length > 0
-    const chartData = buildChartData(history, activeTab, machine, hasActiveIncident)
+    const chartData = buildChartData(history, activeTab, machine, hasActiveIncident, timeFrame)
     const threshold = getThreshold(activeTab, machine.code)
 
     return (
@@ -94,10 +96,13 @@ export default function MachineDetailPage() {
                         latestReading={latestReading}
                         hasActiveIncident={hasActiveIncident}
                         threshold={threshold}
+                        timeFrame={timeFrame}
+                        setTimeFrame={setTimeFrame}
                     />
                 </div>
-                <div className="xl:col-span-4">
+                <div className="xl:col-span-4 flex flex-col gap-6">
                     <MachineSensorCard reading={latestReading} />
+                    <AIAnalysisCard machineId={machineId} />
                 </div>
             </div>
 

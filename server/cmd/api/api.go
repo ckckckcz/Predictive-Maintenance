@@ -66,6 +66,7 @@ func main() {
 	incidentRepo := repository.NewIncidentRepository(pool)
 	auditRepo    := repository.NewAuditRepository(pool)
 	pushRepo     := repository.NewPushRepository(pool)
+	aiRepo       := repository.NewAIAnalysisRepository(pool)
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	notifySvc   := services.NewNotificationService(pushRepo, cfg)
@@ -73,6 +74,7 @@ func main() {
 	machineSvc  := services.NewMachineService(machineRepo)
 	sensorSvc   := services.NewSensorService(pool, sensorRepo, machineRepo, incidentRepo, auditRepo, notifySvc)
 	incidentSvc := services.NewIncidentService(incidentRepo, auditRepo, notifySvc)
+	geminiSvc   := services.NewGeminiService(cfg.OpenRouter.APIKey, cfg.OpenRouter.Model, machineRepo, sensorRepo, incidentRepo, aiRepo)
 
 	// ── HTTP Router ───────────────────────────────────────────────────────────
 	router := handlers.NewRouter(handlers.Dependencies{
@@ -83,12 +85,13 @@ func main() {
 		SensorSvc:   sensorSvc,
 		IncidentSvc: incidentSvc,
 		NotifySvc:   notifySvc,
+		GeminiSvc:   geminiSvc,
 		UserRepo:    userRepo,
 		AuditRepo:   auditRepo,
 	})
 
 	// ── Simulator & Background Jobs ──────────────────────────────────────────
-	simSvc := services.NewSimulatorService(machineRepo, sensorSvc)
+	simSvc := services.NewSimulatorService(machineRepo, sensorSvc, geminiSvc)
 	simCtx, simCancel := context.WithCancel(context.Background())
 
 	// Start the IoT simulator ticker (every 15 seconds)

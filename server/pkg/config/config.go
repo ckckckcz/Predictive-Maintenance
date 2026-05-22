@@ -11,13 +11,14 @@ import (
 
 // Config holds all application configuration loaded from environment variables.
 type Config struct {
-	App      AppConfig
-	Database DatabaseConfig
-	JWT      JWTConfig
-	CORS     CORSConfig
-	VAPID    VAPIDConfig
-	Expo     ExpoConfig
-	Simulator SimulatorConfig
+	App        AppConfig
+	Database   DatabaseConfig
+	JWT        JWTConfig
+	CORS       CORSConfig
+	VAPID      VAPIDConfig
+	Expo       ExpoConfig
+	Simulator  SimulatorConfig
+	OpenRouter OpenRouterConfig
 }
 
 type AppConfig struct {
@@ -60,6 +61,12 @@ type ExpoConfig struct {
 // SimulatorConfig holds the internal API key for sensor ingestion.
 type SimulatorConfig struct {
 	APIKey string
+}
+
+// OpenRouterConfig holds settings for the OpenRouter AI API.
+type OpenRouterConfig struct {
+	APIKey string
+	Model  string
 }
 
 // Load reads .env file (if present) and parses all environment variables.
@@ -124,6 +131,10 @@ func Load() (*Config, error) {
 
 	// --- Simulator ---
 	cfg.Simulator.APIKey = getEnv("SIMULATOR_API_KEY", "")
+
+	// --- OpenRouter ---
+	cfg.OpenRouter.APIKey = getEnv("OPENROUTER_API_KEY", "")
+	cfg.OpenRouter.Model = getEnv("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
 
 	return cfg, nil
 }

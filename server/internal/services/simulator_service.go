@@ -15,13 +15,15 @@ import (
 type SimulatorService struct {
 	machineRepo repository.MachineRepository
 	sensorSvc   *SensorService
+	geminiSvc   *GeminiService
 	rng         *rand.Rand
 }
 
-func NewSimulatorService(machineRepo repository.MachineRepository, sensorSvc *SensorService) *SimulatorService {
+func NewSimulatorService(machineRepo repository.MachineRepository, sensorSvc *SensorService, geminiSvc *GeminiService) *SimulatorService {
 	return &SimulatorService{
 		machineRepo: machineRepo,
 		sensorSvc:   sensorSvc,
+		geminiSvc:   geminiSvc,
 		rng:         rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
@@ -61,9 +63,20 @@ func (s *SimulatorService) runSimulationStep(ctx context.Context) {
 			continue
 		}
 
-		_, err := s.sensorSvc.IngestReading(ctx, req)
+		result, err := s.sensorSvc.IngestReading(ctx, req)
 		if err != nil {
 			log.Printf("🤖 Simulator error: failed to ingest reading for machine %s (%s): %v", m.Name, m.Code, err)
+			continue
+		}
+
+		// If an anomaly was detected, trigger AI analysis asynchronously (non-blocking)
+		if result != nil && result.Reading != nil && result.Reading.IsAnomaly && s.geminiSvc != nil {
+			machineID := m.ID
+			go func() {
+				if _, err := s.geminiSvc.Analyze(context.Background(), machineID); err != nil {
+					log.Printf("⚠️ Async Gemini analysis failed for %s: %v", m.Code, err)
+				}
+			}()
 		}
 	}
 }
