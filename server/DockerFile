@@ -1,0 +1,41 @@
+# ── Build stage ──────────────────────────────────────────────────────────────
+FROM golang:1.23-alpine AS builder
+
+WORKDIR /app
+
+# Install git (needed for private modules if any)
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Cache dependencies first
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source and build
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-w -s" -o /app/server ./cmd/api
+
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+FROM alpine:3.20
+
+WORKDIR /app
+
+# TLS certificates (needed for Supabase SSL connections)
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /app/server .
+
+# Copy migrations (optional — can also run via psql separately)
+COPY migrations/ ./migrations/
+
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
+EXPOSE 8080
+
+# Health check — matches the /health endpoint in our router
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -qO- http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["/app/server"]
