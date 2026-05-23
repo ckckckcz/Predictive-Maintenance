@@ -14,6 +14,7 @@ import {
     Info,
     Settings2,
     Trash2,
+    Wrench,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,14 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 
+interface Mechanic {
+    id: string
+    name: string
+    email: string
+    phone: string
+    specialization: string
+}
+
 interface Machine {
     id: string
     name: string
@@ -39,6 +48,8 @@ interface Machine {
     type: string
     location: string | null
     status: "ACTIVE" | "INACTIVE" | "MAINTENANCE"
+    mechanic_id: string | null
+    mechanic?: Mechanic | null
     created_at: string
 }
 
@@ -50,11 +61,17 @@ export default function OperationsPage() {
     const [userRole, setUserRole] = useState<string | null>(null)
     const [refreshing, setRefreshing] = useState(false)
 
+    // Master data states
+    const [areas, setAreas] = useState<{ id: string; name: string; code: string }[]>([])
+    const [machineTypes, setMachineTypes] = useState<{ id: string; name: string; code: string }[]>([])
+    const [mechanics, setMechanics] = useState<Mechanic[]>([])
+
     // Form states for creating a new machine
     const [newMachineName, setNewMachineName] = useState("")
     const [newMachineCode, setNewMachineCode] = useState("")
-    const [newMachineType, setNewMachineType] = useState("CONVEYOR")
+    const [newMachineType, setNewMachineType] = useState("")
     const [newMachineLocation, setNewMachineLocation] = useState("")
+    const [newMachineMechanicId, setNewMachineMechanicId] = useState("none")
     const [submitLoading, setSubmitLoading] = useState(false)
 
     // Form states for editing an existing machine
@@ -62,8 +79,9 @@ export default function OperationsPage() {
     const [isEditFormOpen, setIsEditFormOpen] = useState(false)
     const [editMachineName, setEditMachineName] = useState("")
     const [editMachineCode, setEditMachineCode] = useState("")
-    const [editMachineType, setEditMachineType] = useState("CONVEYOR")
+    const [editMachineType, setEditMachineType] = useState("")
     const [editMachineLocation, setEditMachineLocation] = useState("")
+    const [editMachineMechanicId, setEditMachineMechanicId] = useState("none")
 
     const fetchUserAndRole = () => {
         if (typeof window !== "undefined") {
@@ -92,17 +110,40 @@ export default function OperationsPage() {
         }
     }
 
+    const loadMasterData = async () => {
+        try {
+            const [areasData, typesData, mechanicsData] = await Promise.all([
+                api.get<any, any[]>("/api/v1/areas"),
+                api.get<any, any[]>("/api/v1/machine-types"),
+                api.get<any, any[]>("/api/v1/mechanics")
+            ])
+            setAreas(areasData || [])
+            setMachineTypes(typesData || [])
+            setMechanics(mechanicsData || [])
+        } catch (err: any) {
+            console.error("Gagal memuat master data:", err)
+        }
+    }
+
     useEffect(() => {
         fetchUserAndRole()
         loadMachines()
+        loadMasterData()
 
         const interval = setInterval(loadMachines, 5000)
         return () => clearInterval(interval)
     }, [])
 
+    useEffect(() => {
+        if (machineTypes.length > 0 && !newMachineType) {
+            setNewMachineType(machineTypes[0].code)
+        }
+    }, [machineTypes, newMachineType])
+
     const handleRefresh = () => {
         setRefreshing(true)
         loadMachines()
+        loadMasterData()
     }
 
     // Toggle machine ON/OFF (ACTIVE/INACTIVE)
@@ -142,6 +183,7 @@ export default function OperationsPage() {
                 code: newMachineCode,
                 type: newMachineType,
                 location: newMachineLocation || null,
+                mechanic_id: (newMachineMechanicId && newMachineMechanicId !== "none") ? newMachineMechanicId : null,
             })
             toast.success("Mesin baru berhasil ditambahkan!", { id: toastId })
             setIsFormOpen(false)
@@ -149,8 +191,9 @@ export default function OperationsPage() {
             // Clear form
             setNewMachineName("")
             setNewMachineCode("")
-            setNewMachineType("CONVEYOR")
+            setNewMachineType(machineTypes.length > 0 ? machineTypes[0].code : "")
             setNewMachineLocation("")
+            setNewMachineMechanicId("none")
 
             loadMachines()
         } catch (err: any) {
@@ -166,6 +209,7 @@ export default function OperationsPage() {
         setEditMachineCode(m.code)
         setEditMachineType(m.type)
         setEditMachineLocation(m.location || "")
+        setEditMachineMechanicId(m.mechanic_id || "none")
         setIsEditFormOpen(true)
     }
 
@@ -185,6 +229,7 @@ export default function OperationsPage() {
                 code: editMachineCode,
                 type: editMachineType,
                 location: editMachineLocation || null,
+                mechanic_id: (editMachineMechanicId && editMachineMechanicId !== "none") ? editMachineMechanicId : null,
             })
             toast.success("Mesin berhasil diperbarui!", { id: toastId })
             setIsEditFormOpen(false)
@@ -345,27 +390,51 @@ export default function OperationsPage() {
                                     <SelectValue placeholder="Pilih Tipe" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="PASTEURISASI">PASTEURISASI</SelectItem>
-                                    <SelectItem value="FILLING">FILLING</SelectItem>
-                                    <SelectItem value="CONVEYOR">CONVEYOR</SelectItem>
-                                    <SelectItem value="COLD_STORAGE">COLD_STORAGE</SelectItem>
-                                    <SelectItem value="BOILER">BOILER</SelectItem>
+                                    {machineTypes.map((type) => (
+                                        <SelectItem key={type.id} value={type.code}>
+                                            {type.name} ({type.code})
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label htmlFor="mLoc" className="text-sm font-semibold text-gray-700">
+                        <Label className="text-sm font-semibold text-gray-700">
                             Lokasi / Area Pabrik
                         </Label>
-                        <Input
-                            id="mLoc"
-                            placeholder="Contoh: Lantai 3 - Area A"
-                            value={newMachineLocation}
-                            onChange={(e) => setNewMachineLocation(e.target.value)}
-                            className="h-11 bg-white border-gray-200"
-                        />
+                        <Select value={newMachineLocation} onValueChange={setNewMachineLocation}>
+                            <SelectTrigger className="h-11 w-full bg-white border-gray-200">
+                                <SelectValue placeholder="Pilih Lokasi / Area" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {areas.map((area) => (
+                                    <SelectItem key={area.id} value={area.name}>
+                                        {area.name} ({area.code})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label className="text-sm font-semibold text-gray-700">
+                            Penanggung Jawab (Mekanik)
+                        </Label>
+                        <Select value={newMachineMechanicId} onValueChange={setNewMachineMechanicId}>
+                            <SelectTrigger className="h-11 w-full bg-white border-gray-200">
+                                <SelectValue placeholder="Pilih Penanggung Jawab (Opsional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Belum Ditentukan</SelectItem>
+                                {mechanics.map((mech) => (
+                                    <SelectItem key={mech.id} value={mech.id}>
+                                        {mech.name} ({mech.specialization})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
             </ResponsiveModal>
@@ -437,27 +506,51 @@ export default function OperationsPage() {
                                     <SelectValue placeholder="Pilih Tipe" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="PASTEURISASI">PASTEURISASI</SelectItem>
-                                    <SelectItem value="FILLING">FILLING</SelectItem>
-                                    <SelectItem value="CONVEYOR">CONVEYOR</SelectItem>
-                                    <SelectItem value="COLD_STORAGE">COLD_STORAGE</SelectItem>
-                                    <SelectItem value="BOILER">BOILER</SelectItem>
+                                    {machineTypes.map((type) => (
+                                        <SelectItem key={type.id} value={type.code}>
+                                            {type.name} ({type.code})
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label htmlFor="editMLoc" className="text-sm font-semibold text-gray-700">
+                        <Label className="text-sm font-semibold text-gray-700">
                             Lokasi / Area Pabrik
                         </Label>
-                        <Input
-                            id="editMLoc"
-                            placeholder="Contoh: Lantai 3 - Area A"
-                            value={editMachineLocation}
-                            onChange={(e) => setEditMachineLocation(e.target.value)}
-                            className="h-11 bg-white border-gray-200"
-                        />
+                        <Select value={editMachineLocation} onValueChange={setEditMachineLocation}>
+                            <SelectTrigger className="h-11 w-full bg-white border-gray-200">
+                                <SelectValue placeholder="Pilih Lokasi / Area" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {areas.map((area) => (
+                                    <SelectItem key={area.id} value={area.name}>
+                                        {area.name} ({area.code})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label className="text-sm font-semibold text-gray-700">
+                            Penanggung Jawab (Mekanik)
+                        </Label>
+                        <Select value={editMachineMechanicId} onValueChange={setEditMachineMechanicId}>
+                            <SelectTrigger className="h-11 w-full bg-white border-gray-200">
+                                <SelectValue placeholder="Pilih Penanggung Jawab (Opsional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Belum Ditentukan</SelectItem>
+                                {mechanics.map((mech) => (
+                                    <SelectItem key={mech.id} value={mech.id}>
+                                        {mech.name} ({mech.specialization})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
             </ResponsiveModal>
@@ -479,6 +572,8 @@ export default function OperationsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredMachines.map((m) => {
                         const isActive = m.status === "ACTIVE"
+                        const idx = machines.findIndex(x => x.id === m.id)
+                        const machineNum = idx !== -1 ? String(idx + 1) : m.id
                         return (
                             <Card key={m.id} className="p-5 space-y-4 border-gray-200/80 shadow-md rounded-2xl bg-white/70 backdrop-blur-md transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
                                 {/* Card Header */}
@@ -527,14 +622,26 @@ export default function OperationsPage() {
                                     )}
                                 </div>
 
-                                {/* Machine Type Display */}
-                                <div className="bg-gray-50/80 rounded-xl p-3 space-y-1 border border-gray-100/50">
-                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                        <Settings2 className="h-3 w-3" />
-                                        Tipe Peralatan
+                                {/* Machine Type Display & Mechanic PIC */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-gray-50/80 rounded-xl p-3 space-y-1 border border-gray-100/50">
+                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                            <Settings2 className="h-3 w-3" />
+                                            Tipe Peralatan
+                                        </div>
+                                        <div className="text-xs text-gray-700 font-bold truncate">
+                                            {m.type}
+                                        </div>
                                     </div>
-                                    <div className="text-xs text-gray-700 font-bold">
-                                        {m.type}
+
+                                    <div className="bg-gray-50/80 rounded-xl p-3 space-y-1 border border-gray-100/50">
+                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                            <Wrench className="h-3 w-3 text-emerald-600" />
+                                            PIC / Mekanik
+                                        </div>
+                                        <div className="text-xs text-gray-700 font-bold truncate" title={m.mechanic ? `${m.mechanic.name} (${m.mechanic.specialization})` : "Belum Ditentukan"}>
+                                            {m.mechanic ? m.mechanic.name : "Belum Ditentukan"}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -568,7 +675,7 @@ export default function OperationsPage() {
 
                                 {/* Action Buttons */}
                                 <div className="flex items-center gap-2 pt-1">
-                                    <Link href={`/dashboard/operation/${m.id}`} className="flex-1">
+                                    <Link href={`/dashboard/operation/${machineNum}`} className="flex-1">
                                         <Button className="w-full h-10 bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5 rounded-xl font-bold shadow-md shadow-emerald-100 cursor-pointer">
                                             <Eye className="h-4 w-4" />
                                             Buka Mesin

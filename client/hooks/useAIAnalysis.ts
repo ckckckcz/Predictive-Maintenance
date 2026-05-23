@@ -50,6 +50,7 @@ export function useAIAnalysis(machineId: string): UseAIAnalysisReturn {
     }, [machineId])
 
     const reanalyze = useCallback(async () => {
+        if (!machineId) return
         setIsLoading(true)
         setError(null)
         try {
@@ -66,15 +67,20 @@ export function useAIAnalysis(machineId: string): UseAIAnalysisReturn {
 
     // Initial fetch
     useEffect(() => {
-        setIsLoading(true)
-        fetchAnalysis()
-    }, [fetchAnalysis])
+        if (machineId) {
+            setIsLoading(true)
+            fetchAnalysis()
+        } else {
+            setIsLoading(false)
+        }
+    }, [machineId, fetchAnalysis])
 
     // Auto-refetch every 5 minutes
     useEffect(() => {
+        if (!machineId) return
         const interval = setInterval(fetchAnalysis, 5 * 60 * 1000)
         return () => clearInterval(interval)
-    }, [fetchAnalysis])
+    }, [machineId, fetchAnalysis])
 
     return { analysis, isLoading, isStale, error, reanalyze }
 }

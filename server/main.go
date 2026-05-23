@@ -75,6 +75,7 @@ func main() {
 	pushRepo     := repository.NewPushRepository(pool)
 	aiRepo       := repository.NewAIAnalysisRepository(pool)
 	masterRepo   := repository.NewMasterDataRepository(pool)
+	mechanicRepo := repository.NewMechanicRepository(pool)
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	notifySvc   := services.NewNotificationService(pushRepo, cfg)
@@ -84,6 +85,7 @@ func main() {
 	incidentSvc := services.NewIncidentService(incidentRepo, auditRepo, notifySvc)
 	geminiSvc   := services.NewGeminiService(cfg.OpenRouter.APIKey, cfg.OpenRouter.Model, machineRepo, sensorRepo, incidentRepo, aiRepo)
 	masterSvc   := services.NewMasterDataService(masterRepo)
+	mechanicSvc := services.NewMechanicService(mechanicRepo)
 
 	// ── HTTP Router ───────────────────────────────────────────────────────────
 	// ── Simulator & Background Jobs ────────────────────────────────────────────
@@ -94,18 +96,19 @@ func main() {
 	simSvc.Start(simCtx, 15*time.Second)
 
 	router := handlers.NewRouter(handlers.Dependencies{
-		Cfg:          cfg,
-		Pool:         pool,
-		AuthSvc:      authSvc,
-		MachineSvc:   machineSvc,
-		SensorSvc:    sensorSvc,
-		IncidentSvc:  incidentSvc,
-		NotifySvc:    notifySvc,
-		GeminiSvc:    geminiSvc,
-		UserRepo:     userRepo,
-		AuditRepo:    auditRepo,
-		SimulatorSvc: simSvc,
+		Cfg:           cfg,
+		Pool:          pool,
+		AuthSvc:       authSvc,
+		MachineSvc:    machineSvc,
+		SensorSvc:     sensorSvc,
+		IncidentSvc:   incidentSvc,
+		NotifySvc:     notifySvc,
+		GeminiSvc:     geminiSvc,
+		UserRepo:      userRepo,
+		AuditRepo:     auditRepo,
+		SimulatorSvc:  simSvc,
 		MasterDataSvc: masterSvc,
+		MechanicSvc:   mechanicSvc,
 	})
 
 	// Start the periodic risk score updater ticker (every 2 minutes)
@@ -253,6 +256,16 @@ func autoMigrateNewTables(ctx context.Context, pool *pgxpool.Pool) error {
 			message TEXT NOT NULL,
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 		);`,
+		`CREATE TABLE IF NOT EXISTS mechanics (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name VARCHAR(100) NOT NULL,
+			email VARCHAR(100) UNIQUE NOT NULL,
+			phone VARCHAR(20) NOT NULL,
+			specialization VARCHAR(100) NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+		);`,
+		`ALTER TABLE machines ADD COLUMN IF NOT EXISTS mechanic_id UUID REFERENCES mechanics(id) ON DELETE SET NULL;`,
 	}
 
 	for _, q := range queries {
@@ -275,6 +288,11 @@ func autoMigrateNewTables(ctx context.Context, pool *pgxpool.Pool) error {
 	_, _ = pool.Exec(ctx, `
 		CREATE OR REPLACE TRIGGER trg_machine_types_updated_at
 		BEFORE UPDATE ON machine_types
+		FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+	`)
+	_, _ = pool.Exec(ctx, `
+		CREATE OR REPLACE TRIGGER trg_mechanics_updated_at
+		BEFORE UPDATE ON mechanics
 		FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 	`)
 
@@ -320,6 +338,34 @@ func autoMigrateNewTables(ctx context.Context, pool *pgxpool.Pool) error {
 		for _, t := range initialTypes {
 			_, _ = pool.Exec(ctx, "INSERT INTO machine_types (name, code) VALUES ($1, $2)", t.name, t.code)
 		}
+	}
+
+	// Seed initial mechanics if empty
+	_ = pool.QueryRow(ctx, "SELECT COUNT(*) FROM mechanics").Scan(&count)
+	if count == 0 {
+		initialMechanics := []struct{ name, email, phone, specialization string }{
+			{"Budi Santoso", "budi@greenfields.com", "08123456789", "Electrical & Automation"},
+			{"Andi Wijaya", "andi@greenfields.com", "08234567890", "Mechanical & Pneumatic"},
+			{"Citra Lestari", "citra@greenfields.com", "08345678901", "Thermal & HVAC"},
+		}
+		for _, m := range initialMechanics {
+			_, _ = pool.Exec(ctx, "INSERT INTO mechanics (name, email, phone, specialization) VALUES ($1, $2, $3, $4)",
+				m.name, m.email, m.phone, m.specialization)
+
+			// Seed as user so they can log in
+			_, _ = pool.Exec(ctx, `
+				INSERT INTO users (name, email, password, role, phone, is_active)
+				VALUES ($1, $2, '$2a$12$ihi1DdKsqhSypALHfa9f.ecdYz3NPYHBLpT2ogc7we58ystT/yxm2', 'OPERATOR', $3, true)
+				ON CONFLICT (email) DO NOTHING
+			`, m.name, m.email, m.phone)
+		}
+
+		// Auto-assign them to default virtual machines to populate penanggung jawab
+		_, _ = pool.Exec(ctx, `
+			UPDATE machines SET mechanic_id = (SELECT id FROM mechanics WHERE email = 'budi@greenfields.com') WHERE code = 'PST-001';
+			UPDATE machines SET mechanic_id = (SELECT id FROM mechanics WHERE email = 'andi@greenfields.com') WHERE code IN ('FLL-002', 'CNV-001');
+			UPDATE machines SET mechanic_id = (SELECT id FROM mechanics WHERE email = 'citra@greenfields.com') WHERE code IN ('CLD-003', 'BLR-001');
+		`)
 	}
 
 	return nil

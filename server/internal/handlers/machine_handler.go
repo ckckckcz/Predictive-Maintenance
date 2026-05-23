@@ -26,6 +26,21 @@ func (h *MachineHandler) ListMachines(c *gin.Context) {
 	if err := mapServiceError(c, err); err != nil {
 		return
 	}
+
+	mechEmail := c.Query("mechanic_email")
+	if mechEmail != "" {
+		exists, err := h.machines.MechanicExistsByEmail(c.Request.Context(), mechEmail)
+		if err == nil && exists {
+			filtered := make([]*models.Machine, 0)
+			for _, m := range machines {
+				if m.Mechanic != nil && m.Mechanic.Email == mechEmail {
+					filtered = append(filtered, m)
+				}
+			}
+			machines = filtered
+		}
+	}
+
 	utils.JSON(c, http.StatusOK, machines)
 }
 

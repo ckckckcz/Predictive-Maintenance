@@ -9,7 +9,7 @@ export type MachinesState = {
   refresh: () => void;
 };
 
-export function useMachines(): MachinesState {
+export function useMachines(mechanicEmail?: string): MachinesState {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,14 +18,14 @@ export function useMachines(): MachinesState {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await listMachines();
+      const data = await listMachines(mechanicEmail);
       setMachines(data);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Gagal memuat data mesin');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [mechanicEmail]);
 
   useEffect(() => {
     fetchMachines();

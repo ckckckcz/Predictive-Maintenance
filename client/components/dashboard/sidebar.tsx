@@ -13,6 +13,7 @@ import {
     MapPin,
     Factory,
     Sliders,
+    Wrench,
 } from "lucide-react"
 
 import { useState } from "react"
@@ -158,6 +159,11 @@ export function Sidebar({ className }: { className?: string }) {
                                         href: "/dashboard/machine-type",
                                         label: "Tipe Mesin",
                                         icon: Sliders,
+                                    },
+                                    {
+                                        href: "/dashboard/mechanic",
+                                        label: "Mekanik",
+                                        icon: Wrench,
                                     },
                                 ].map((item) => (
                                     <div

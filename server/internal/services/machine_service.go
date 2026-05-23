@@ -75,3 +75,7 @@ func (s *MachineService) DeleteMachine(ctx context.Context, id uuid.UUID) error 
 	}
 	return s.machines.Delete(ctx, id)
 }
+
+func (s *MachineService) MechanicExistsByEmail(ctx context.Context, email string) (bool, error) {
+	return s.machines.MechanicExistsByEmail(ctx, email)
+}

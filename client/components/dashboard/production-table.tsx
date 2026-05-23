@@ -292,13 +292,15 @@ export function ProductionTable() {
                                             (inc.status === "OPEN" || inc.status === "IN_PROGRESS")
                                     )
                                     const hasActiveIncident = activeIncidents.length > 0
-                                    // Get highest severity incident if multiple
                                     const highestSeverityIncident = hasActiveIncident
                                         ? [...activeIncidents].sort((a, b) => {
                                             const severities = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 }
                                             return severities[b.severity] - severities[a.severity]
                                         })[0]
                                         : null
+
+                                    const idx = machines.findIndex(x => x.id === m.id)
+                                    const machineNum = idx !== -1 ? String(idx + 1) : m.id
 
                                     return (
                                         <tr
@@ -369,7 +371,7 @@ export function ProductionTable() {
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={() => router.push(`/dashboard/operation/${m.id}`)}
+                                                    onClick={() => router.push(`/dashboard/operation/${machineNum}`)}
                                                     className="h-8 px-3 font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50/70 border border-transparent hover:border-emerald-200/40 rounded-lg cursor-pointer"
                                                 >
                                                     <Eye className="h-3.5 w-3.5 mr-1" />

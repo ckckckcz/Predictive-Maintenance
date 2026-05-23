@@ -16,10 +16,22 @@ export function useMachineDetail(machineId: string, onIncidentUpdate?: () => voi
  
     const loadData = async () => {
         try {
+            const machinesList = (await api.get<any, Machine[]>("/api/v1/machines")) || []
+            let resolvedMachine: Machine | undefined
+            const idx = parseInt(machineId, 10)
+            if (!isNaN(idx) && idx > 0 && idx <= machinesList.length) {
+                resolvedMachine = machinesList[idx - 1]
+            } else {
+                resolvedMachine = machinesList.find(
+                    m => m.id === machineId || m.code === machineId
+                )
+            }
+            const uuid = resolvedMachine ? resolvedMachine.id : machineId
+
             const [mDetails, mHistory, mIncidents] = await Promise.all([
-                api.get<any, Machine>(`/api/v1/machines/${machineId}`),
-                api.get<any, SensorReading[]>(`/api/v1/machines/${machineId}/sensors/history?limit=300`),
-                api.get<any, Incident[]>(`/api/v1/incidents?machine_id=${machineId}&limit=100`)
+                api.get<any, Machine>(`/api/v1/machines/${uuid}`),
+                api.get<any, SensorReading[]>(`/api/v1/machines/${uuid}/sensors/history?limit=300`),
+                api.get<any, Incident[]>(`/api/v1/incidents?machine_id=${uuid}&limit=100`)
             ])
             setMachine(mDetails)
             const sorted = (mHistory || []).sort(

@@ -1,3 +1,13 @@
+export interface Mechanic {
+    id: string
+    name: string
+    email: string
+    phone: string
+    specialization: string
+    created_at?: string
+    updated_at?: string
+}
+
 export interface Machine {
     id: string
     name: string
@@ -5,6 +15,8 @@ export interface Machine {
     type: string
     location: string | null
     status: "ACTIVE" | "INACTIVE" | "MAINTENANCE"
+    mechanic_id?: string | null
+    mechanic?: Mechanic | null
     created_at: string
 }
 

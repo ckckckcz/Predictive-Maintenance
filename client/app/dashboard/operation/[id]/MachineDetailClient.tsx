@@ -22,23 +22,25 @@ export default function MachineDetailClient() {
     const [currentPage, setCurrentPage] = useState(1)
     const [simulating, setSimulating] = useState(false)
 
-    const aiAnalysis = useAIAnalysis(machineId)
-
     const {
         machine, history, incidents, loading,
         activeTab, setActiveTab, latestReading, activeIncidents,
         timeFrame, setTimeFrame, refresh,
         handleAcknowledge, handleResolve,
-    } = useMachineDetail(machineId, () => {
-        // Automatically trigger AI re-analysis when incidents are resolved or acknowledged
+    } = useMachineDetail(machineId, handleIncidentUpdate)
+
+    const aiAnalysis = useAIAnalysis(machine?.id || "")
+
+    function handleIncidentUpdate() {
         aiAnalysis.reanalyze()
-    })
+    }
 
     const handleSimulateAnomaly = async () => {
+        if (!machine) return
         setSimulating(true)
         const toastId = toast.loading("Mensimulasikan anomali sensor...")
         try {
-            await api.post(`/api/v1/machines/${machineId}/simulate-anomaly`)
+            await api.post(`/api/v1/machines/${machine.id}/simulate-anomaly`)
             toast.success("Anomali berhasil disimulasikan! Sensor mendeteksi kegagalan.", { id: toastId })
             refresh()
             // Immediately update AI Analysis card
@@ -105,8 +107,18 @@ export default function MachineDetailClient() {
                                     {machine.status}
                                 </Badge>
                             </div>
-                            <p className="text-sm text-slate-500 font-medium mt-0.5">
-                                {machine.code} <span className="text-slate-300 mx-1">•</span> {machine.location || "Lokasi tidak diatur"}
+                            <p className="text-sm text-slate-500 font-medium mt-0.5 flex flex-wrap items-center gap-y-1">
+                                <span>{machine.code}</span>
+                                <span className="text-slate-300 mx-1.5">•</span>
+                                <span>{machine.location || "Lokasi tidak diatur"}</span>
+                                {machine.mechanic && (
+                                    <>
+                                        <span className="text-slate-300 mx-1.5">•</span>
+                                        <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-xs font-semibold">
+                                            PIC: {machine.mechanic.name} ({machine.mechanic.specialization})
+                                        </span>
+                                    </>
+                                )}
                             </p>
                         </div>
                     </div>

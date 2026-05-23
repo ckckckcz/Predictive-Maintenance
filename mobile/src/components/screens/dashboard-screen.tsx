@@ -14,7 +14,7 @@ import { ScreenProps } from './types';
 import { styles } from './dashboard-screen.styles';
 import { useMachines } from '@/hooks/use-machines';
 import { useIncidents } from '@/hooks/use-incidents';
-import type { Machine } from '@/api/types';
+import type { Machine, UserPublic } from '@/api/types';
 
 function getMachineDisplayStatus(machine: Machine): 'critical' | 'warning' | 'healthy' {
   if (machine.status === 'INACTIVE') return 'critical';
@@ -28,12 +28,13 @@ function getStatusColor(status: 'critical' | 'warning' | 'healthy'): string {
   return '#16a34a';
 }
 
-export function DashboardScreen({ onNavigate, user }: ScreenProps & { user?: { name: string } | null }) {
+export function DashboardScreen({ onNavigate, user }: ScreenProps & { user?: UserPublic | null }) {
   const theme = useTheme();
   const [activeCategory, setActiveCategory] = useState('Semua');
   const [refreshing, setRefreshing] = useState(false);
 
-  const { machines, isLoading: machinesLoading, error: machinesError, refresh: refreshMachines } = useMachines();
+  const mechanicEmail = user?.role === 'OPERATOR' ? user.email : undefined;
+  const { machines, isLoading: machinesLoading, error: machinesError, refresh: refreshMachines } = useMachines(mechanicEmail);
   const { incidents, stats, isLoading: incidentsLoading, refresh: refreshIncidents } = useIncidents({ limit: 5 });
 
   const onRefresh = async () => {

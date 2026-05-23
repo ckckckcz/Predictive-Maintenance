@@ -32,6 +32,8 @@ import {
 } from '@/components/ui/icons';
 import { Home, ShieldAlert, Bell, User } from 'lucide-react-native';
 import { useAuth } from '@/hooks/use-auth';
+import { getStoredAuth } from '@/store/auth-store';
+import { useNotifications } from '@/hooks/use-notifications';
 import type { UserPublic } from '@/api/types';
 
 export default function App() {
@@ -43,6 +45,8 @@ export default function App() {
   const [screenParams, setScreenParams] = useState<any>(null);
   const [showcaseOpen, setShowcaseOpen] = useState(false);
   const [loggedInUser, setLoggedInUser] = useState<UserPublic | null>(null);
+
+  useNotifications(loggedInUser);
 
   const theme = Colors[themeMode];
   const { loadStoredSession } = useAuth();
@@ -58,9 +62,12 @@ export default function App() {
     restoreSession();
   }, []);
 
-  const handleNavigate = (screenName: string, params?: any) => {
+  const handleNavigate = async (screenName: string, params?: any) => {
     setCurrentScreen(screenName);
     if (params) setScreenParams(params);
+
+    const stored = await getStoredAuth();
+    setLoggedInUser(stored ? stored.user : null);
   };
 
   const renderScreenContent = () => {

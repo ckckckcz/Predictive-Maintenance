@@ -65,6 +65,7 @@ interface IncidentWithDetails {
     machine_code: string
     acknowledged_by_name: string | null
     resolved_by_name: string | null
+    supervisor_response?: string | null
 }
 
 export default function AuditLogPage() {
@@ -579,6 +580,12 @@ export default function AuditLogPage() {
                                                         {incident.description && (
                                                             <div className="text-xs text-gray-500 font-normal line-clamp-1 mt-0.5">
                                                                 {incident.description}
+                                                            </div>
+                                                        )}
+                                                        {incident.supervisor_response && (
+                                                            <div className="text-xs text-emerald-700 bg-emerald-50/70 border border-emerald-100 rounded-lg p-2 mt-2 font-normal flex items-start gap-1.5">
+                                                                <span className="font-bold text-[10px] text-emerald-800 uppercase tracking-wider bg-emerald-100 px-1 rounded-sm mt-0.5">Respon Spv:</span>
+                                                                <span className="flex-1 whitespace-pre-wrap">{incident.supervisor_response}</span>
                                                             </div>
                                                         )}
                                                     </td>

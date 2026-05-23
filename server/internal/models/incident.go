@@ -45,10 +45,11 @@ type Incident struct {
 // IncidentWithDetails enriches an Incident with joined machine and user names.
 type IncidentWithDetails struct {
 	Incident
-	MachineName          string  `json:"machine_name"`
-	MachineCode          string  `json:"machine_code"`
-	AcknowledgedByName   *string `json:"acknowledged_by_name"`
-	ResolvedByName       *string `json:"resolved_by_name"`
+	MachineName        string  `json:"machine_name"`
+	MachineCode        string  `json:"machine_code"`
+	AcknowledgedByName *string `json:"acknowledged_by_name"`
+	ResolvedByName     *string `json:"resolved_by_name"`
+	SupervisorResponse *string `json:"supervisor_response"`
 }
 
 // IncidentStats aggregates incident counts for the dashboard.

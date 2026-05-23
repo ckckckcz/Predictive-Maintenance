@@ -26,6 +26,7 @@ type Dependencies struct {
 	AuditRepo    repository.AuditRepository
 	SimulatorSvc *services.SimulatorService
 	MasterDataSvc *services.MasterDataService
+	MechanicSvc   *services.MechanicService
 }
 
 func NewRouter(deps Dependencies) *gin.Engine {
@@ -53,6 +54,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	uploadSvc := services.NewUploadService(deps.Cfg)
 	uploadH   := NewUploadHandler(uploadSvc)
 	masterH   := NewMasterDataHandler(deps.MasterDataSvc)
+	mechanicH := NewMechanicHandler(deps.MechanicSvc)
 
 	// ── Serve local uploads statically ───────────────────────────────────────
 	r.Static("/uploads", "./uploads")
@@ -103,6 +105,10 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		auth.GET("/lines/:id", masterH.GetLine)
 		auth.GET("/machine-types", masterH.ListMachineTypes)
 		auth.GET("/machine-types/:id", masterH.GetMachineType)
+
+		// Mechanics (read: both roles)
+		auth.GET("/mechanics", mechanicH.ListMechanics)
+		auth.GET("/mechanics/:id", mechanicH.GetMechanic)
 
 		// Incidents (read/write: both roles)
 		auth.GET("/incidents/stats", incidentH.GetStats)
@@ -155,6 +161,11 @@ func NewRouter(deps Dependencies) *gin.Engine {
 			supervisor.POST("/machine-types", masterH.CreateMachineType)
 			supervisor.PUT("/machine-types/:id", masterH.UpdateMachineType)
 			supervisor.DELETE("/machine-types/:id", masterH.DeleteMachineType)
+
+			// Mechanics management
+			supervisor.POST("/mechanics", mechanicH.CreateMechanic)
+			supervisor.PUT("/mechanics/:id", mechanicH.UpdateMechanic)
+			supervisor.DELETE("/mechanics/:id", mechanicH.DeleteMechanic)
 
 			// Incident management
 			supervisor.DELETE("/incidents/:id", incidentH.DeleteIncident)

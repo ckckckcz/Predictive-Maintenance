@@ -54,7 +54,8 @@ const (
 		       i.risk_score, i.image_url, i.acknowledged_by, i.acknowledged_at, i.resolved_by, i.resolved_at,
 		       i.deleted_at, i.created_at, i.updated_at,
 		       m.name AS machine_name, m.code AS machine_code,
-		       u1.name AS acknowledged_by_name, u2.name AS resolved_by_name
+		       u1.name AS acknowledged_by_name, u2.name AS resolved_by_name,
+		       (SELECT message FROM incident_replies ir JOIN users u ON ir.user_id = u.id WHERE ir.incident_id = i.id AND u.role = 'SUPERVISOR' ORDER BY ir.created_at DESC LIMIT 1) AS supervisor_response
 		FROM incidents i
 		LEFT JOIN machines m  ON i.machine_id = m.id
 		LEFT JOIN users u1    ON i.acknowledged_by = u1.id
@@ -127,7 +128,8 @@ func (r *incidentRepository) List(ctx context.Context, f models.IncidentFilter) 
 		       i.risk_score, i.image_url, i.acknowledged_by, i.acknowledged_at, i.resolved_by, i.resolved_at,
 		       i.deleted_at, i.created_at, i.updated_at,
 		       m.name AS machine_name, m.code AS machine_code,
-		       u1.name AS acknowledged_by_name, u2.name AS resolved_by_name
+		       u1.name AS acknowledged_by_name, u2.name AS resolved_by_name,
+		       (SELECT message FROM incident_replies ir JOIN users u ON ir.user_id = u.id WHERE ir.incident_id = i.id AND u.role = 'SUPERVISOR' ORDER BY ir.created_at DESC LIMIT 1) AS supervisor_response
 		FROM incidents i
 		LEFT JOIN machines m ON i.machine_id = m.id
 		LEFT JOIN users u1   ON i.acknowledged_by = u1.id
@@ -244,7 +246,7 @@ func scanIncidentWithDetails(row rowScanner) (*models.IncidentWithDetails, error
 	var iwd models.IncidentWithDetails
 	var readingID, acknowledgedBy, resolvedBy pgtype.UUID
 	var acknowledgedAt, resolvedAt, deletedAt pgtype.Timestamptz
-	var description, imageURL, acknowledgedByName, resolvedByName pgtype.Text
+	var description, imageURL, acknowledgedByName, resolvedByName, supervisorResponse pgtype.Text
 
 	err := row.Scan(
 		&iwd.ID, &iwd.MachineID, &readingID, &iwd.Title, &description,
@@ -253,6 +255,7 @@ func scanIncidentWithDetails(row rowScanner) (*models.IncidentWithDetails, error
 		&deletedAt, &iwd.CreatedAt, &iwd.UpdatedAt,
 		&iwd.MachineName, &iwd.MachineCode,
 		&acknowledgedByName, &resolvedByName,
+		&supervisorResponse,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("incident: scan details: %w", err)
@@ -275,6 +278,9 @@ func scanIncidentWithDetails(row rowScanner) (*models.IncidentWithDetails, error
 	}
 	if resolvedByName.Valid {
 		iwd.ResolvedByName = &resolvedByName.String
+	}
+	if supervisorResponse.Valid {
+		iwd.SupervisorResponse = &supervisorResponse.String
 	}
 	return &iwd, nil
 }

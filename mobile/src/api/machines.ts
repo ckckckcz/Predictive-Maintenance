@@ -1,8 +1,9 @@
 import { apiRequest } from './client';
 import type { Machine, SensorReading } from './types';
 
-export async function listMachines(): Promise<Machine[]> {
-  return apiRequest<Machine[]>('/machines');
+export async function listMachines(mechanicEmail?: string): Promise<Machine[]> {
+  const url = mechanicEmail ? `/machines?mechanic_email=${encodeURIComponent(mechanicEmail)}` : '/machines';
+  return apiRequest<Machine[]>(url);
 }
 
 export async function getMachine(id: string): Promise<Machine> {
