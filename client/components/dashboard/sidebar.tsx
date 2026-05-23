@@ -5,14 +5,14 @@ import { usePathname } from "next/navigation"
 import {
     House,
     Database,
-    Users,
-    Clock,
-    Factory,
     ChevronDown,
     ChevronRight,
     Cog,
     Clipboard,
-    Activity
+    Activity,
+    MapPin,
+    Factory,
+    Sliders,
 } from "lucide-react"
 
 import { useState } from "react"
@@ -83,7 +83,7 @@ export function Sidebar({ className }: { className?: string }) {
                             Operation
                         </span>
                     </Link>
-                    
+
                     {/* Audit */}
                     <Link href="/dashboard/audit">
                         <span
@@ -145,19 +145,19 @@ export function Sidebar({ className }: { className?: string }) {
 
                                 {[
                                     {
-                                        href: "/dashboard/groups",
-                                        label: "Groups",
-                                        icon: Users,
+                                        href: "/dashboard/area",
+                                        label: "Area",
+                                        icon: MapPin,
                                     },
                                     {
-                                        href: "/dashboard/shifts",
-                                        label: "Shifts",
-                                        icon: Clock,
-                                    },
-                                    {
-                                        href: "/dashboard/production-lines",
-                                        label: "Production Lines",
+                                        href: "/dashboard/line",
+                                        label: "Line",
                                         icon: Factory,
+                                    },
+                                    {
+                                        href: "/dashboard/machine-type",
+                                        label: "Tipe Mesin",
+                                        icon: Sliders,
                                     },
                                 ].map((item) => (
                                     <div

@@ -59,6 +59,13 @@ func main() {
 		log.Println("✅ Database seeded     [5 virtual machines verified/created]")
 	}
 
+	// Auto-migrate and seed new tables
+	if err := autoMigrateNewTables(ctx, pool); err != nil {
+		log.Printf("⚠️  New tables migration failed: %v", err)
+	} else {
+		log.Println("✅ New tables migrated [areas, lines, machine_types, incident_replies ✓]")
+	}
+
 	// ── Repositories ─────────────────────────────────────────────────────────
 	userRepo     := repository.NewUserRepository(pool)
 	machineRepo  := repository.NewMachineRepository(pool)
@@ -67,6 +74,7 @@ func main() {
 	auditRepo    := repository.NewAuditRepository(pool)
 	pushRepo     := repository.NewPushRepository(pool)
 	aiRepo       := repository.NewAIAnalysisRepository(pool)
+	masterRepo   := repository.NewMasterDataRepository(pool)
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	notifySvc   := services.NewNotificationService(pushRepo, cfg)
@@ -75,6 +83,7 @@ func main() {
 	sensorSvc   := services.NewSensorService(pool, sensorRepo, machineRepo, incidentRepo, auditRepo, notifySvc)
 	incidentSvc := services.NewIncidentService(incidentRepo, auditRepo, notifySvc)
 	geminiSvc   := services.NewGeminiService(cfg.OpenRouter.APIKey, cfg.OpenRouter.Model, machineRepo, sensorRepo, incidentRepo, aiRepo)
+	masterSvc   := services.NewMasterDataService(masterRepo)
 
 	// ── HTTP Router ───────────────────────────────────────────────────────────
 	// ── Simulator & Background Jobs ────────────────────────────────────────────
@@ -96,6 +105,7 @@ func main() {
 		UserRepo:     userRepo,
 		AuditRepo:    auditRepo,
 		SimulatorSvc: simSvc,
+		MasterDataSvc: masterSvc,
 	})
 
 	// Start the periodic risk score updater ticker (every 2 minutes)
@@ -211,3 +221,107 @@ func autoSeedMachines(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	return nil
 }
+
+func autoMigrateNewTables(ctx context.Context, pool *pgxpool.Pool) error {
+	// Create tables
+	queries := []string{
+		`CREATE TABLE IF NOT EXISTS areas (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name VARCHAR(100) NOT NULL,
+			code VARCHAR(50) UNIQUE NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+		);`,
+		`CREATE TABLE IF NOT EXISTS lines (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name VARCHAR(100) NOT NULL,
+			code VARCHAR(50) UNIQUE NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+		);`,
+		`CREATE TABLE IF NOT EXISTS machine_types (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name VARCHAR(100) NOT NULL,
+			code VARCHAR(50) UNIQUE NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+		);`,
+		`CREATE TABLE IF NOT EXISTS incident_replies (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+			user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			message TEXT NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+		);`,
+	}
+
+	for _, q := range queries {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			return fmt.Errorf("migration: exec query failed: %w", err)
+		}
+	}
+
+	// Try to add triggers for updated_at
+	_, _ = pool.Exec(ctx, `
+		CREATE OR REPLACE TRIGGER trg_areas_updated_at
+		BEFORE UPDATE ON areas
+		FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+	`)
+	_, _ = pool.Exec(ctx, `
+		CREATE OR REPLACE TRIGGER trg_lines_updated_at
+		BEFORE UPDATE ON lines
+		FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+	`)
+	_, _ = pool.Exec(ctx, `
+		CREATE OR REPLACE TRIGGER trg_machine_types_updated_at
+		BEFORE UPDATE ON machine_types
+		FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+	`)
+
+	// Seed initial areas if empty
+	var count int
+	_ = pool.QueryRow(ctx, "SELECT COUNT(*) FROM areas").Scan(&count)
+	if count == 0 {
+		initialAreas := []struct{ name, code string }{
+			{"Lantai 1 - Area A", "L1-A"},
+			{"Lantai 1 - Area B", "L1-B"},
+			{"Lantai 2 - Area A", "L2-A"},
+			{"Lantai 2 - Area B", "L2-B"},
+			{"Lantai 3 - Area A", "L3-A"},
+		}
+		for _, a := range initialAreas {
+			_, _ = pool.Exec(ctx, "INSERT INTO areas (name, code) VALUES ($1, $2)", a.name, a.code)
+		}
+	}
+
+	// Seed initial lines if empty
+	_ = pool.QueryRow(ctx, "SELECT COUNT(*) FROM lines").Scan(&count)
+	if count == 0 {
+		initialLines := []struct{ name, code string }{
+			{"Line Produksi A", "LN-A"},
+			{"Line Produksi B", "LN-B"},
+			{"Line Produksi C", "LN-C"},
+		}
+		for _, l := range initialLines {
+			_, _ = pool.Exec(ctx, "INSERT INTO lines (name, code) VALUES ($1, $2)", l.name, l.code)
+		}
+	}
+
+	// Seed initial machine types if empty
+	_ = pool.QueryRow(ctx, "SELECT COUNT(*) FROM machine_types").Scan(&count)
+	if count == 0 {
+		initialTypes := []struct{ name, code string }{
+			{"Mesin Pasteurisasi", "PASTEURISASI"},
+			{"Mesin Filling", "FILLING"},
+			{"Conveyor Belt", "CONVEYOR"},
+			{"Cold Storage", "COLD_STORAGE"},
+			{"Boiler Unit", "BOILER"},
+		}
+		for _, t := range initialTypes {
+			_, _ = pool.Exec(ctx, "INSERT INTO machine_types (name, code) VALUES ($1, $2)", t.name, t.code)
+		}
+	}
+
+	return nil
+}
+

@@ -22,8 +22,6 @@ import {
     Info,
     ShieldAlert
 } from "lucide-react"
-import { MachineTelemetryChart } from "@/components/dashboard/machine-telemetry-chart"
-import { buildChartData, getThreshold } from "@/utils/chartUtils"
 import { Machine, SensorReading, Incident as BaseIncident } from "@/types/machine"
 
 interface Incident extends BaseIncident {
@@ -539,32 +537,7 @@ export default function SimulationDashboard() {
                                                 </div>
                                             </div>
 
-                                            {/* Graph Section */}
-                                            <div className="mb-6">
-                                                {isMounted && telemetryHistory.length > 0 ? (
-                                                    <MachineTelemetryChart
-                                                        chartData={buildChartData(
-                                                            telemetryHistory,
-                                                            activeTab,
-                                                            selectedMachine,
-                                                            incidents.some((i) => i.status !== "RESOLVED"),
-                                                            timeFrame
-                                                        )}
-                                                        activeTab={activeTab}
-                                                        setActiveTab={setActiveTab}
-                                                        latestReading={latestReading || null}
-                                                        hasActiveIncident={incidents.some((i) => i.status !== "RESOLVED")}
-                                                        threshold={getThreshold(activeTab, selectedMachine.code)}
-                                                        timeFrame={timeFrame}
-                                                        setTimeFrame={setTimeFrame}
-                                                    />
-                                                ) : (
-                                                    <div className="flex h-72 items-center justify-center text-gray-400 text-sm bg-white rounded-xl border border-gray-200">
-                                                        <Activity className="h-6 w-6 text-gray-300 animate-pulse mr-2" />
-                                                        Mengumpulkan data pembacaan pertama...
-                                                    </div>
-                                                )}
-                                            </div>
+
                                         </>
                                     )}
                                 </CardContent>

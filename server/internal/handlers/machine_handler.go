@@ -133,3 +133,39 @@ func (h *MachineHandler) SimulateAnomaly(c *gin.Context) {
 
 	utils.JSON(c, http.StatusOK, result)
 }
+
+// PUT /api/v1/machines/:id [SUPERVISOR]
+func (h *MachineHandler) UpdateMachine(c *gin.Context) {
+	id, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+
+	var req models.UpdateMachineRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ValidationError(c, err.Error())
+		return
+	}
+
+	machine, svcErr := h.machines.UpdateMachine(c.Request.Context(), id, &req)
+	if err := mapServiceError(c, svcErr); err != nil {
+		return
+	}
+
+	utils.JSON(c, http.StatusOK, machine)
+}
+
+// DELETE /api/v1/machines/:id [SUPERVISOR]
+func (h *MachineHandler) DeleteMachine(c *gin.Context) {
+	id, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+
+	svcErr := h.machines.DeleteMachine(c.Request.Context(), id)
+	if err := mapServiceError(c, svcErr); err != nil {
+		return
+	}
+
+	utils.JSONMessage(c, http.StatusOK, "machine deleted successfully")
+}

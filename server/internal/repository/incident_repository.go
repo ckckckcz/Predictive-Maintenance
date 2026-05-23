@@ -25,6 +25,9 @@ type IncidentRepository interface {
 	Resolve(ctx context.Context, id, userID uuid.UUID) error
 	SoftDelete(ctx context.Context, id uuid.UUID) error
 	GetStats(ctx context.Context) (*models.IncidentStats, error)
+	UpdateStatus(ctx context.Context, id uuid.UUID, status models.IncidentStatus, userID uuid.UUID) error
+	CreateReply(ctx context.Context, reply *models.IncidentReply) (*models.IncidentReply, error)
+	ListReplies(ctx context.Context, incidentID uuid.UUID) ([]*models.IncidentReply, error)
 }
 
 // ─── Implementation ──────────────────────────────────────────────────────────
@@ -292,3 +295,79 @@ func nullableTime(t pgtype.Timestamptz) *time.Time {
 	}
 	return &t.Time
 }
+
+func (r *incidentRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status models.IncidentStatus, userID uuid.UUID) error {
+	var query string
+	if status == models.StatusInProgress {
+		query = `
+			UPDATE incidents
+			SET status = $2, acknowledged_by = COALESCE(acknowledged_by, $3), acknowledged_at = COALESCE(acknowledged_at, NOW()), updated_at = NOW()
+			WHERE id = $1 AND deleted_at IS NULL`
+	} else if status == models.StatusResolved {
+		query = `
+			UPDATE incidents
+			SET status = $2, resolved_by = COALESCE(resolved_by, $3), resolved_at = COALESCE(resolved_at, NOW()), updated_at = NOW()
+			WHERE id = $1 AND deleted_at IS NULL`
+	} else {
+		query = `
+			UPDATE incidents
+			SET status = $2, updated_at = NOW()
+			WHERE id = $1 AND deleted_at IS NULL`
+	}
+	_, err := r.pool.Exec(ctx, query, id, status, userID)
+	return err
+}
+
+func (r *incidentRepository) CreateReply(ctx context.Context, reply *models.IncidentReply) (*models.IncidentReply, error) {
+	query := `
+		INSERT INTO incident_replies (incident_id, user_id, message)
+		VALUES ($1, $2, $3)
+		RETURNING id, incident_id, user_id, message, created_at`
+	
+	var saved models.IncidentReply
+	err := r.pool.QueryRow(ctx, query, reply.IncidentID, reply.UserID, reply.Message).Scan(
+		&saved.ID, &saved.IncidentID, &saved.UserID, &saved.Message, &saved.CreatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("incident repository: create reply: %w", err)
+	}
+
+	userQuery := `SELECT name, role FROM users WHERE id = $1`
+	err = r.pool.QueryRow(ctx, userQuery, saved.UserID).Scan(&saved.UserName, &saved.UserRole)
+	if err != nil {
+		saved.UserName = "Unknown"
+		saved.UserRole = "OPERATOR"
+	}
+
+	return &saved, nil
+}
+
+func (r *incidentRepository) ListReplies(ctx context.Context, incidentID uuid.UUID) ([]*models.IncidentReply, error) {
+	query := `
+		SELECT r.id, r.incident_id, r.user_id, r.message, r.created_at, u.name, u.role
+		FROM incident_replies r
+		JOIN users u ON r.user_id = u.id
+		WHERE r.incident_id = $1
+		ORDER BY r.created_at ASC`
+	
+	rows, err := r.pool.Query(ctx, query, incidentID)
+	if err != nil {
+		return nil, fmt.Errorf("incident repository: list replies: %w", err)
+	}
+	defer rows.Close()
+
+	var replies []*models.IncidentReply
+	for rows.Next() {
+		var reply models.IncidentReply
+		err := rows.Scan(
+			&reply.ID, &reply.IncidentID, &reply.UserID, &reply.Message, &reply.CreatedAt,
+			&reply.UserName, &reply.UserRole,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("incident repository: scan reply: %w", err)
+		}
+		replies = append(replies, &reply)
+	}
+	return replies, rows.Err()
+}
+

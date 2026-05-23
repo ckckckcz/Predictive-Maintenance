@@ -248,7 +248,12 @@ export function DashboardScreen({ onNavigate, user }: ScreenProps & { user?: { n
                     inc.severity === 'HIGH' ? '#ea580c' :
                       inc.severity === 'MEDIUM' ? '#f59e0b' : '#16a34a';
                 return (
-                  <View key={inc.id} style={styles.incidentListItem}>
+                  <TouchableOpacity
+                    key={inc.id}
+                    style={styles.incidentListItem}
+                    onPress={() => onNavigate('incidentDetail', { incidentId: inc.id, incident: inc })}
+                    activeOpacity={0.7}
+                  >
                     <View style={[styles.incidentCategoryIndicator, { backgroundColor: sevColor }]} />
                     <View style={styles.incidentListBody}>
                       <Text style={styles.incidentListTitle}>{inc.title}</Text>
@@ -257,7 +262,7 @@ export function DashboardScreen({ onNavigate, user }: ScreenProps & { user?: { n
                     <View style={[styles.severityBadge, { backgroundColor: sevColor + '15' }]}>
                       <Text style={[styles.severityBadgeText, { color: sevColor }]}>{inc.severity}</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })
             )}

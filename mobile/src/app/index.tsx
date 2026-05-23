@@ -20,6 +20,7 @@ import {
   IncidentReportScreen,
   NotificationScreen,
   ProfileScreen,
+  IncidentDetailScreen,
 } from '@/components/screens';
 import {
   HomeIcon,
@@ -91,6 +92,8 @@ export default function App() {
         return <NotificationScreen {...props} />;
       case 'profile':
         return <ProfileScreen {...props} />;
+      case 'incidentDetail':
+        return <IncidentDetailScreen {...props} params={screenParams} />;
       default:
         return <DashboardScreen {...props} />;
     }
@@ -104,6 +107,7 @@ export default function App() {
     'incidentReport',
     'notifications',
     'profile',
+    'incidentDetail',
   ].includes(currentScreen);
 
   // Helper to check if a tab is active
@@ -124,6 +128,7 @@ export default function App() {
     { id: 'incidentReport', label: '8. Lapor Insiden' },
     { id: 'notifications', label: '9. Notifikasi & Alarm' },
     { id: 'profile', label: '10. Profil & Settings' },
+    { id: 'incidentDetail', label: '11. Detail & Chat Insiden' },
   ];
 
   // Mobile layout container inside web browser

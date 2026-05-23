@@ -39,3 +39,11 @@ type CreateMachineRequest struct {
 type UpdateMachineStatusRequest struct {
 	Status MachineStatus `json:"status" binding:"required,oneof=ACTIVE INACTIVE MAINTENANCE"`
 }
+
+type UpdateMachineRequest struct {
+	Name     string  `json:"name"     binding:"required,min=2,max=100"`
+	Code     string  `json:"code"     binding:"required,min=2,max=50"`
+	Type     string  `json:"type"     binding:"required,min=2,max=50"`
+	Location *string `json:"location"`
+}
+

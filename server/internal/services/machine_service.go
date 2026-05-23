@@ -50,3 +50,28 @@ func (s *MachineService) UpdateMachineStatus(ctx context.Context, id uuid.UUID, 
 	}
 	return s.machines.UpdateStatus(ctx, id, req.Status)
 }
+
+// UpdateMachine updates details of a machine.
+func (s *MachineService) UpdateMachine(ctx context.Context, id uuid.UUID, req *models.UpdateMachineRequest) (*models.Machine, error) {
+	// Verify machine exists
+	if _, err := s.machines.FindByID(ctx, id); err != nil {
+		return nil, err
+	}
+
+	// Check code uniqueness (if changed)
+	existing, err := s.machines.FindByCode(ctx, req.Code)
+	if err == nil && existing != nil && existing.ID != id {
+		return nil, fmt.Errorf("%w: machine code %q already exists", utils.ErrConflict, req.Code)
+	}
+
+	return s.machines.Update(ctx, id, req)
+}
+
+// DeleteMachine deletes a machine and cascade references.
+func (s *MachineService) DeleteMachine(ctx context.Context, id uuid.UUID) error {
+	// Verify machine exists
+	if _, err := s.machines.FindByID(ctx, id); err != nil {
+		return err
+	}
+	return s.machines.Delete(ctx, id)
+}

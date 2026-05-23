@@ -153,6 +153,78 @@ func (s *IncidentService) GetStats(ctx context.Context) (*models.IncidentStats, 
 	return s.incidents.GetStats(ctx)
 }
 
+// CreateReply adds a message thread response and optionally updates incident status.
+func (s *IncidentService) CreateReply(
+	ctx context.Context,
+	incidentID uuid.UUID,
+	message string,
+	actorID uuid.UUID,
+	actorIP string,
+	newStatus *models.IncidentStatus,
+) (*models.IncidentReply, error) {
+	inc, err := s.incidents.FindByID(ctx, incidentID)
+	if err != nil {
+		return nil, err
+	}
+
+	reply := &models.IncidentReply{
+		IncidentID: incidentID,
+		UserID:     actorID,
+		Message:    message,
+	}
+
+	saved, err := s.incidents.CreateReply(ctx, reply)
+	if err != nil {
+		return nil, fmt.Errorf("service: reply create: %w", err)
+	}
+
+	// Update status if requested and changed
+	if newStatus != nil && *newStatus != inc.Status {
+		if err := s.incidents.UpdateStatus(ctx, incidentID, *newStatus, actorID); err != nil {
+			return nil, fmt.Errorf("service: update status: %w", err)
+		}
+
+		oldVal := string(inc.Status)
+		newVal := string(*newStatus)
+		var auditAction models.AuditAction
+		if *newStatus == models.StatusInProgress {
+			auditAction = models.ActionIncidentAcknowledged
+		} else if *newStatus == models.StatusResolved {
+			auditAction = models.ActionIncidentResolved
+		} else {
+			auditAction = models.ActionIncidentAcknowledged
+		}
+		s.writeAudit(ctx, &incidentID, &actorID, auditAction, &oldVal, &newVal, actorIP)
+
+		// Broadcast status change notify (async)
+		go func() {
+			payload := &models.NotificationPayload{
+				Title: fmt.Sprintf("⚠️ Status Insiden Diperbarui: %s", *newStatus),
+				Body:  fmt.Sprintf("Insiden \"%s\" diubah statusnya menjadi %s", inc.Title, *newStatus),
+				Data:  map[string]string{"incident_id": incidentID.String()},
+			}
+			_ = s.notifier.BroadcastToAll(context.Background(), payload)
+		}()
+	} else {
+		// Broadcast reply notification to all subscribers
+		go func() {
+			payload := &models.NotificationPayload{
+				Title: fmt.Sprintf("💬 Balasan Baru pada Insiden"),
+				Body:  fmt.Sprintf("%s: %s", saved.UserName, saved.Message),
+				Data:  map[string]string{"incident_id": incidentID.String()},
+			}
+			_ = s.notifier.BroadcastToAll(context.Background(), payload)
+		}()
+	}
+
+	return saved, nil
+}
+
+// ListReplies returns all replies in order of creation.
+func (s *IncidentService) ListReplies(ctx context.Context, incidentID uuid.UUID) ([]*models.IncidentReply, error) {
+	return s.incidents.ListReplies(ctx, incidentID)
+}
+
 // ─── Private helpers ─────────────────────────────────────────────────────────
 
 // writeAudit persists an audit log entry, logging on failure rather than propagating.

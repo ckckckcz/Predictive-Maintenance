@@ -148,3 +148,46 @@ func (h *IncidentHandler) DeleteIncident(c *gin.Context) {
 
 	utils.JSONMessage(c, http.StatusOK, "incident deleted")
 }
+
+// GET /api/v1/incidents/:id/replies
+func (h *IncidentHandler) ListReplies(c *gin.Context) {
+	id, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+
+	replies, svcErr := h.incidents.ListReplies(c.Request.Context(), id)
+	if err := mapServiceError(c, svcErr); err != nil {
+		return
+	}
+
+	utils.JSON(c, http.StatusOK, replies)
+}
+
+// POST /api/v1/incidents/:id/replies
+func (h *IncidentHandler) CreateReply(c *gin.Context) {
+	id, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+
+	var req models.CreateIncidentReplyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ValidationError(c, err.Error())
+		return
+	}
+
+	actorID, ok := middleware.GetUserID(c)
+	if !ok {
+		utils.Unauthorized(c, "invalid session")
+		return
+	}
+
+	reply, svcErr := h.incidents.CreateReply(c.Request.Context(), id, req.Message, actorID, c.ClientIP(), req.Status)
+	if err := mapServiceError(c, svcErr); err != nil {
+		return
+	}
+
+	utils.JSON(c, http.StatusCreated, reply)
+}
+

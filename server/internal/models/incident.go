@@ -83,3 +83,22 @@ type IncidentFilter struct {
 	Limit     int
 	Offset    int
 }
+
+// IncidentReply represents a message thread response.
+type IncidentReply struct {
+	ID         uuid.UUID `json:"id"`
+	IncidentID uuid.UUID `json:"incident_id"`
+	UserID     uuid.UUID `json:"user_id"`
+	Message    string    `json:"message"`
+	CreatedAt  time.Time `json:"created_at"`
+
+	// Joined/Aggregated info
+	UserName string `json:"user_name"`
+	UserRole string `json:"user_role"`
+}
+
+type CreateIncidentReplyRequest struct {
+	Message string          `json:"message" binding:"required"`
+	Status  *IncidentStatus `json:"status,omitempty"`
+}
+

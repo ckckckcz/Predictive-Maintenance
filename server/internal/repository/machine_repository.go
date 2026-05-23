@@ -21,6 +21,8 @@ type MachineRepository interface {
 	FindByCode(ctx context.Context, code string) (*models.Machine, error)
 	List(ctx context.Context) ([]*models.Machine, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status models.MachineStatus) error
+	Update(ctx context.Context, id uuid.UUID, req *models.UpdateMachineRequest) (*models.Machine, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 // ─── Implementation ──────────────────────────────────────────────────────────
@@ -54,6 +56,12 @@ const (
 		FROM machines ORDER BY created_at ASC`
 
 	queryUpdateMachineStatus = `UPDATE machines SET status=$2 WHERE id=$1`
+
+	queryUpdateMachine = `
+		UPDATE machines
+		SET name = $1, code = $2, type = $3, location = $4
+		WHERE id = $5
+		RETURNING id, name, code, type, location, status, created_at`
 )
 
 // ─── Methods ─────────────────────────────────────────────────────────────────
@@ -110,6 +118,50 @@ func (r *machineRepository) List(ctx context.Context) ([]*models.Machine, error)
 func (r *machineRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status models.MachineStatus) error {
 	_, err := r.pool.Exec(ctx, queryUpdateMachineStatus, id, string(status))
 	return err
+}
+
+func (r *machineRepository) Update(ctx context.Context, id uuid.UUID, req *models.UpdateMachineRequest) (*models.Machine, error) {
+	row := r.pool.QueryRow(ctx, queryUpdateMachine,
+		req.Name, req.Code, req.Type, req.Location, id,
+	)
+	return scanMachine(row)
+}
+
+func (r *machineRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// 1. Delete audit logs referencing incidents of this machine
+	_, err = tx.Exec(ctx, `
+		DELETE FROM audit_logs
+		WHERE incident_id IN (SELECT id FROM incidents WHERE machine_id = $1)
+	`, id)
+	if err != nil {
+		return err
+	}
+
+	// 2. Delete incidents of this machine
+	_, err = tx.Exec(ctx, `DELETE FROM incidents WHERE machine_id = $1`, id)
+	if err != nil {
+		return err
+	}
+
+	// 3. Delete sensor readings of this machine
+	_, err = tx.Exec(ctx, `DELETE FROM sensor_readings WHERE machine_id = $1`, id)
+	if err != nil {
+		return err
+	}
+
+	// 4. Delete the machine
+	_, err = tx.Exec(ctx, `DELETE FROM machines WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 // ─── Scanner ─────────────────────────────────────────────────────────────────

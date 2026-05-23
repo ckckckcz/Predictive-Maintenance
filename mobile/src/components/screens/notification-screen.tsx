@@ -74,7 +74,12 @@ export function NotificationScreen({ onNavigate }: ScreenProps) {
             incidents.map((inc) => {
               const { label, color, bg } = getSeverityConfig(inc.severity);
               return (
-                <View key={inc.id} style={styles.notifItem}>
+                <TouchableOpacity
+                  key={inc.id}
+                  style={styles.notifItem}
+                  onPress={() => onNavigate('incidentDetail', { incidentId: inc.id, incident: inc })}
+                  activeOpacity={0.7}
+                >
                   <View style={[styles.notifStatusMarker, { backgroundColor: color }]} />
                   <View style={styles.notifBody}>
                     <View style={styles.notifHeaderRow}>
@@ -89,7 +94,10 @@ export function NotificationScreen({ onNavigate }: ScreenProps) {
                     {inc.status === 'OPEN' && (
                       <TouchableOpacity
                         style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' }}
-                        onPress={() => acknowledgeIncident(inc.id)}
+                        onPress={(e) => {
+                          e.stopPropagation(); // prevent card click navigation
+                          acknowledgeIncident(inc.id);
+                        }}
                         activeOpacity={0.7}
                       >
                         <CheckCircle2 size={14} color="#15803d" />
@@ -97,7 +105,7 @@ export function NotificationScreen({ onNavigate }: ScreenProps) {
                       </TouchableOpacity>
                     )}
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })
           )}

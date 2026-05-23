@@ -13,6 +13,7 @@ import {
     RefreshCw,
     Info,
     Settings2,
+    Trash2,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -55,6 +56,14 @@ export default function OperationsPage() {
     const [newMachineType, setNewMachineType] = useState("CONVEYOR")
     const [newMachineLocation, setNewMachineLocation] = useState("")
     const [submitLoading, setSubmitLoading] = useState(false)
+
+    // Form states for editing an existing machine
+    const [editingMachine, setEditingMachine] = useState<Machine | null>(null)
+    const [isEditFormOpen, setIsEditFormOpen] = useState(false)
+    const [editMachineName, setEditMachineName] = useState("")
+    const [editMachineCode, setEditMachineCode] = useState("")
+    const [editMachineType, setEditMachineType] = useState("CONVEYOR")
+    const [editMachineLocation, setEditMachineLocation] = useState("")
 
     const fetchUserAndRole = () => {
         if (typeof window !== "undefined") {
@@ -148,6 +157,64 @@ export default function OperationsPage() {
             toast.error(`Gagal menambah mesin: ${err.message}`, { id: toastId })
         } finally {
             setSubmitLoading(false)
+        }
+    }
+
+    const handleOpenEditModal = (m: Machine) => {
+        setEditingMachine(m)
+        setEditMachineName(m.name)
+        setEditMachineCode(m.code)
+        setEditMachineType(m.type)
+        setEditMachineLocation(m.location || "")
+        setIsEditFormOpen(true)
+    }
+
+    const handleUpdateMachine = async () => {
+        if (!editingMachine) return
+        if (!editMachineName || !editMachineCode || !editMachineType) {
+            toast.error("Silakan isi semua bidang wajib (Nama, Kode, Tipe)")
+            return
+        }
+
+        setSubmitLoading(true)
+        const toastId = toast.loading("Memperbarui data mesin...")
+
+        try {
+            await api.put(`/api/v1/machines/${editingMachine.id}`, {
+                name: editMachineName,
+                code: editMachineCode,
+                type: editMachineType,
+                location: editMachineLocation || null,
+            })
+            toast.success("Mesin berhasil diperbarui!", { id: toastId })
+            setIsEditFormOpen(false)
+            setEditingMachine(null)
+            loadMachines()
+        } catch (err: any) {
+            toast.error(`Gagal memperbarui mesin: ${err.message}`, { id: toastId })
+        } finally {
+            setSubmitLoading(false)
+        }
+    }
+
+    const handleDeleteMachine = async (machineId: string) => {
+        if (userRole !== "SUPERVISOR") {
+            toast.error("Akses Ditolak: Anda membutuhkan peran SUPERVISOR untuk menghapus mesin.")
+            return
+        }
+
+        if (!confirm("Apakah Anda yakin ingin menghapus mesin ini? Semua data sensor, insiden, dan log terkait akan ikut terhapus secara permanen.")) {
+            return
+        }
+
+        const toastId = toast.loading("Menghapus mesin...")
+
+        try {
+            await api.delete(`/api/v1/machines/${machineId}`)
+            toast.success("Mesin berhasil dihapus!", { id: toastId })
+            loadMachines()
+        } catch (err: any) {
+            toast.error(`Gagal menghapus mesin: ${err.message}`, { id: toastId })
         }
     }
 
@@ -303,6 +370,98 @@ export default function OperationsPage() {
                 </div>
             </ResponsiveModal>
 
+            {/* Modal for Editing Machine */}
+            <ResponsiveModal
+                open={isEditFormOpen}
+                onOpenChange={setIsEditFormOpen}
+                showCloseButton={false}
+                forceDrawerOnMobile={true}
+                title="Edit Data Mesin Pabrik"
+                footer={
+                    <div className="flex gap-3 w-full">
+                        <Button
+                            onClick={handleUpdateMachine}
+                            disabled={submitLoading}
+                            className="flex-1 h-11 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 cursor-pointer"
+                        >
+                            {submitLoading ? "Menyimpan..." : "Simpan Perubahan"}
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setIsEditFormOpen(false)
+                                setEditingMachine(null)
+                            }}
+                            className="flex-1 h-11 border-gray-200 hover:bg-gray-100 cursor-pointer"
+                        >
+                            Batal
+                        </Button>
+                    </div>
+                }
+            >
+                <div className="space-y-4 py-2">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="editMName" className="text-sm font-semibold text-gray-700">
+                            Nama Mesin
+                        </Label>
+                        <Input
+                            id="editMName"
+                            placeholder="Contoh: Boiler Unit Utama"
+                            value={editMachineName}
+                            onChange={(e) => setEditMachineName(e.target.value)}
+                            className="h-11 bg-white border-gray-200"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="editMCode" className="text-sm font-semibold text-gray-700">
+                                Kode Mesin (Unik)
+                            </Label>
+                            <Input
+                                id="editMCode"
+                                placeholder="Contoh: BLR-001"
+                                value={editMachineCode}
+                                onChange={(e) => setEditMachineCode(e.target.value)}
+                                className="h-11 bg-white border-gray-200"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-semibold text-gray-700">
+                                Tipe Mesin
+                            </Label>
+                            <Select value={editMachineType} onValueChange={setEditMachineType}>
+                                <SelectTrigger className="h-11 w-full bg-white border-gray-200">
+                                    <SelectValue placeholder="Pilih Tipe" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="PASTEURISASI">PASTEURISASI</SelectItem>
+                                    <SelectItem value="FILLING">FILLING</SelectItem>
+                                    <SelectItem value="CONVEYOR">CONVEYOR</SelectItem>
+                                    <SelectItem value="COLD_STORAGE">COLD_STORAGE</SelectItem>
+                                    <SelectItem value="BOILER">BOILER</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label htmlFor="editMLoc" className="text-sm font-semibold text-gray-700">
+                            Lokasi / Area Pabrik
+                        </Label>
+                        <Input
+                            id="editMLoc"
+                            placeholder="Contoh: Lantai 3 - Area A"
+                            value={editMachineLocation}
+                            onChange={(e) => setEditMachineLocation(e.target.value)}
+                            className="h-11 bg-white border-gray-200"
+                        />
+                    </div>
+                </div>
+            </ResponsiveModal>
+
             {/* Grid of Cards */}
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100">
@@ -345,6 +504,27 @@ export default function OperationsPage() {
                                             </div>
                                         </div>
                                     </div>
+
+                                    {isSupervisor && (
+                                        <div className="flex items-center gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleOpenEditModal(m)}
+                                                className="h-8 w-8 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg cursor-pointer transition-colors"
+                                            >
+                                                <Edit2 className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleDeleteMachine(m.id)}
+                                                className="h-8 w-8 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Machine Type Display */}

@@ -25,6 +25,7 @@ type Dependencies struct {
 	UserRepo     repository.UserRepository
 	AuditRepo    repository.AuditRepository
 	SimulatorSvc *services.SimulatorService
+	MasterDataSvc *services.MasterDataService
 }
 
 func NewRouter(deps Dependencies) *gin.Engine {
@@ -51,6 +52,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	analysisH := NewAnalysisHandler(deps.GeminiSvc)
 	uploadSvc := services.NewUploadService(deps.Cfg)
 	uploadH   := NewUploadHandler(uploadSvc)
+	masterH   := NewMasterDataHandler(deps.MasterDataSvc)
 
 	// ── Serve local uploads statically ───────────────────────────────────────
 	r.Static("/uploads", "./uploads")
@@ -94,6 +96,14 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		auth.POST("/machines/:id/analyze", analysisH.ForceAnalyze)
 		auth.POST("/machines/:id/simulate-anomaly", machineH.SimulateAnomaly)
 
+		// Master Data (read: both roles)
+		auth.GET("/areas", masterH.ListAreas)
+		auth.GET("/areas/:id", masterH.GetArea)
+		auth.GET("/lines", masterH.ListLines)
+		auth.GET("/lines/:id", masterH.GetLine)
+		auth.GET("/machine-types", masterH.ListMachineTypes)
+		auth.GET("/machine-types/:id", masterH.GetMachineType)
+
 		// Incidents (read/write: both roles)
 		auth.GET("/incidents/stats", incidentH.GetStats)
 		auth.GET("/incidents", incidentH.ListIncidents)
@@ -101,6 +111,8 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		auth.GET("/incidents/:id", incidentH.GetIncident)
 		auth.POST("/incidents/:id/acknowledge", incidentH.Acknowledge)
 		auth.POST("/incidents/:id/resolve", incidentH.Resolve)
+		auth.GET("/incidents/:id/replies", incidentH.ListReplies)
+		auth.POST("/incidents/:id/replies", incidentH.CreateReply)
 
 		// Uploads
 		auth.POST("/upload", uploadH.UploadFile)
@@ -127,7 +139,22 @@ func NewRouter(deps Dependencies) *gin.Engine {
 
 			// Machine management
 			supervisor.POST("/machines", machineH.CreateMachine)
+			supervisor.PUT("/machines/:id", machineH.UpdateMachine)
 			supervisor.PATCH("/machines/:id/status", machineH.UpdateMachineStatus)
+			supervisor.DELETE("/machines/:id", machineH.DeleteMachine)
+
+			// Master Data (Write/CRUD)
+			supervisor.POST("/areas", masterH.CreateArea)
+			supervisor.PUT("/areas/:id", masterH.UpdateArea)
+			supervisor.DELETE("/areas/:id", masterH.DeleteArea)
+
+			supervisor.POST("/lines", masterH.CreateLine)
+			supervisor.PUT("/lines/:id", masterH.UpdateLine)
+			supervisor.DELETE("/lines/:id", masterH.DeleteLine)
+
+			supervisor.POST("/machine-types", masterH.CreateMachineType)
+			supervisor.PUT("/machine-types/:id", masterH.UpdateMachineType)
+			supervisor.DELETE("/machine-types/:id", masterH.DeleteMachineType)
 
 			// Incident management
 			supervisor.DELETE("/incidents/:id", incidentH.DeleteIncident)
