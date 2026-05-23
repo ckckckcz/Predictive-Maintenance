@@ -32,6 +32,7 @@ type Incident struct {
 	Severity       IncidentSeverity `json:"severity"`
 	Status         IncidentStatus   `json:"status"`
 	RiskScore      int              `json:"risk_score"`
+	ImageURL       *string          `json:"image_url"`
 	AcknowledgedBy *uuid.UUID       `json:"acknowledged_by"`
 	AcknowledgedAt *time.Time       `json:"acknowledged_at"`
 	ResolvedBy     *uuid.UUID       `json:"resolved_by"`
@@ -71,6 +72,7 @@ type CreateIncidentRequest struct {
 	Description *string          `json:"description"`
 	Severity    IncidentSeverity `json:"severity"    binding:"required,oneof=LOW MEDIUM HIGH CRITICAL"`
 	RiskScore   int              `json:"risk_score"  binding:"min=0,max=100"`
+	ImageURL    *string          `json:"image_url"`
 }
 
 type IncidentFilter struct {

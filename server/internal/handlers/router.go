@@ -49,6 +49,11 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	auditH    := NewAuditHandler(deps.AuditRepo)
 	notifyH   := NewNotificationHandler(deps.NotifySvc)
 	analysisH := NewAnalysisHandler(deps.GeminiSvc)
+	uploadSvc := services.NewUploadService(deps.Cfg)
+	uploadH   := NewUploadHandler(uploadSvc)
+
+	// ── Serve local uploads statically ───────────────────────────────────────
+	r.Static("/uploads", "./uploads")
 
 	// ── /health — liveness probe ─────────────────────────────────────────────
 	r.GET("/health", health)
@@ -96,6 +101,9 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		auth.GET("/incidents/:id", incidentH.GetIncident)
 		auth.POST("/incidents/:id/acknowledge", incidentH.Acknowledge)
 		auth.POST("/incidents/:id/resolve", incidentH.Resolve)
+
+		// Uploads
+		auth.POST("/upload", uploadH.UploadFile)
 
 		// Audit logs (own incident)
 		auth.GET("/audit-logs/incident/:incident_id", auditH.ListAuditByIncident)

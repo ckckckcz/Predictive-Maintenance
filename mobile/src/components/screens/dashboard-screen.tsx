@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, View, Text, TouchableOpacity } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
 import {
   Bell,
@@ -8,327 +8,262 @@ import {
   Thermometer,
   Activity,
   Gauge as GaugeIcon,
-  ShieldAlert,
-  AlertTriangle,
-  CheckCircle,
+  RefreshCw,
 } from 'lucide-react-native';
 import { ScreenProps } from './types';
 import { styles } from './dashboard-screen.styles';
+import { useMachines } from '@/hooks/use-machines';
+import { useIncidents } from '@/hooks/use-incidents';
+import type { Machine } from '@/api/types';
 
-const INITIAL_MACHINES = [
-  { id: '1', name: 'CNC Milling #04', category: 'Milling', status: 'critical', temp: '82.4°C', vibr: '6.8 mm/s', pressure: '4.2 bar', location: 'Area Produksi A' },
-  { id: '2', name: 'Hydraulic Pump #02', category: 'Hydraulic', status: 'warning', temp: '64.1°C', vibr: '3.1 mm/s', pressure: '5.9 bar', location: 'Area Produksi B' },
-  { id: '3', name: 'Injection Molder #01', category: 'Molding', status: 'healthy', temp: '42.8°C', vibr: '1.2 mm/s', pressure: '3.1 bar', location: 'Area Produksi C' },
-  { id: '4', name: 'Conveyor Motor #03', category: 'Logistics', status: 'healthy', temp: '38.2°C', vibr: '0.9 mm/s', pressure: '0.0 bar', location: 'Area Assembly' },
-];
+function getMachineDisplayStatus(machine: Machine): 'critical' | 'warning' | 'healthy' {
+  if (machine.status === 'INACTIVE') return 'critical';
+  if (machine.status === 'MAINTENANCE') return 'warning';
+  return 'healthy';
+}
 
-export function DashboardScreen({ onNavigate, demoIncidents = [] }: ScreenProps) {
+function getStatusColor(status: 'critical' | 'warning' | 'healthy'): string {
+  if (status === 'critical') return '#dc2626';
+  if (status === 'warning') return '#ea580c';
+  return '#16a34a';
+}
+
+export function DashboardScreen({ onNavigate, user }: ScreenProps & { user?: { name: string } | null }) {
   const theme = useTheme();
   const [activeCategory, setActiveCategory] = useState('Semua');
+  const [refreshing, setRefreshing] = useState(false);
 
-  const filteredMachines = INITIAL_MACHINES.filter((machine) => {
+  const { machines, isLoading: machinesLoading, error: machinesError, refresh: refreshMachines } = useMachines();
+  const { incidents, stats, isLoading: incidentsLoading, refresh: refreshIncidents } = useIncidents({ limit: 5 });
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([refreshMachines(), refreshIncidents()]);
+    setRefreshing(false);
+  };
+
+  const filteredMachines = machines.filter((machine) => {
+    const displayStatus = getMachineDisplayStatus(machine);
     if (activeCategory === 'Semua') return true;
-    if (activeCategory === 'Kritis') return machine.status === 'critical';
-    if (activeCategory === 'Warning') return machine.status === 'warning';
-    if (activeCategory === 'Normal') return machine.status === 'healthy';
+    if (activeCategory === 'Kritis') return displayStatus === 'critical';
+    if (activeCategory === 'Warning') return displayStatus === 'warning';
+    if (activeCategory === 'Normal') return displayStatus === 'healthy';
     return true;
   });
 
+  const normalCount = machines.filter((m) => getMachineDisplayStatus(m) === 'healthy').length;
+  const warningCount = machines.filter((m) => getMachineDisplayStatus(m) === 'warning').length;
+  const criticalCount = machines.filter((m) => getMachineDisplayStatus(m) === 'critical').length;
+
+  const userInitials = user?.name
+    ? user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'OP';
+
+  const firstName = user?.name ? user.name.split(' ')[0] : 'Operator';
+
+  const isLoading = machinesLoading || incidentsLoading;
+
   return (
-    <ScrollView style={[styles.mainScroll, { backgroundColor: '#ffffff' }]} contentContainerStyle={styles.dashboardContainer} showsVerticalScrollIndicator={false}>
-      
-      {/* Header Row */}
+    <ScrollView
+      style={[styles.mainScroll, { backgroundColor: '#ffffff' }]}
+      contentContainerStyle={styles.dashboardContainer}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#15803d" />}
+    >
       <View style={styles.dashboardHeader}>
         <View style={styles.headerLeft}>
           <TouchableOpacity style={styles.avatarContainer} onPress={() => onNavigate('profile')}>
-            <Text style={styles.avatarText}>PW</Text>
+            <Text style={styles.avatarText}>{userInitials}</Text>
           </TouchableOpacity>
           <View style={styles.headerTextContainer}>
             <Text style={styles.dashboardGreeting}>Selamat bertugas,</Text>
-            <Text style={styles.dashboardUserName}>Prasetyo W.</Text>
+            <Text style={styles.dashboardUserName}>{firstName}</Text>
           </View>
         </View>
-        
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.circleButtonBlack} onPress={() => onNavigate('incidentReport')}>
             <Plus size={20} color="#ffffff" />
           </TouchableOpacity>
-          
           <TouchableOpacity style={styles.circleButtonWhite} onPress={() => onNavigate('notifications')}>
             <Bell size={20} color="#0f172a" />
-            <View style={styles.badgeIndicator} />
+            {(stats?.open ?? 0) > 0 && <View style={styles.badgeIndicator} />}
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Title Section & Category Filter */}
-      <View style={styles.sectionTitleRow}>
-        <Text style={styles.sectionTitle}>Status Kesehatan</Text>
-        <Text style={styles.seeAllText}>Mesin Aktif</Text>
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoryScroll}
-        contentContainerStyle={styles.categoryScrollContent}
-      >
-        {['Semua', 'Kritis', 'Warning', 'Normal'].map((cat) => (
-          <TouchableOpacity
-            key={cat}
-            style={[
-              styles.categoryPill,
-              activeCategory === cat ? styles.categoryPillActive : null
-            ]}
-            onPress={() => setActiveCategory(cat)}
-          >
-            <Text
-              style={[
-                styles.categoryPillText,
-                activeCategory === cat ? styles.categoryPillTextActive : null
-              ]}
-            >
-              {cat}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Grid Overview Cards (Like User Reference) */}
-      <View style={styles.overviewGrid}>
-        {/* Big Card - Critical Alerts */}
-        <TouchableOpacity
-          style={[styles.bigOverviewCard, { backgroundColor: '#dc2626' }]}
-          onPress={() => onNavigate('notifications')}
-        >
-          <View style={styles.cardTopRow}>
-            <Text style={styles.bigCardTitle}>Status Bahaya (Kritis)</Text>
-            <View style={styles.whiteArrowCircle}>
-              <ArrowUpRight size={18} color="#ffffff" />
-            </View>
-          </View>
-          <View style={styles.bigCardValueContainer}>
-            <Text style={styles.bigCardValue}>1</Text>
-            <Text style={styles.bigCardSub}>CNC Milling #04 - Suhu 82.4°C Kritis</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Small Cards Row */}
-        <View style={styles.smallCardsRow}>
-          {/* Left Small Card */}
-          <TouchableOpacity
-            style={styles.smallOverviewCard}
-            onPress={() => setActiveCategory('Normal')}
-          >
-            <View style={styles.cardTopRow}>
-              <Text style={styles.smallCardTitle}>Mesin Normal</Text>
-              <View style={styles.primaryArrowCircle}>
-                <ArrowUpRight size={16} color="#15803d" />
-              </View>
-            </View>
-            <View style={styles.smallCardValueContainer}>
-              <Text style={styles.smallCardValue}>2</Text>
-              <Text style={styles.smallCardSub}>Sistem Aman</Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Right Small Card */}
-          <TouchableOpacity
-            style={styles.smallOverviewCard}
-            onPress={() => setActiveCategory('Warning')}
-          >
-            <View style={styles.cardTopRow}>
-              <Text style={styles.smallCardTitle}>Mesin Warning</Text>
-              <View style={styles.warningArrowCircle}>
-                <ArrowUpRight size={16} color="#d97706" />
-              </View>
-            </View>
-            <View style={styles.smallCardValueContainer}>
-              <Text style={styles.smallCardValue}>1</Text>
-              <Text style={styles.smallCardSub}>Perlu Atensi</Text>
-            </View>
+      {isLoading && !refreshing ? (
+        <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#15803d" />
+          <Text style={{ color: '#64748b', marginTop: 12, fontSize: 13 }}>Memuat data mesin...</Text>
+        </View>
+      ) : machinesError ? (
+        <View style={{ padding: 20, alignItems: 'center', gap: 12 }}>
+          <Text style={{ color: '#dc2626', fontSize: 13, textAlign: 'center' }}>{machinesError}</Text>
+          <TouchableOpacity onPress={onRefresh} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <RefreshCw size={16} color="#15803d" />
+            <Text style={{ color: '#15803d', fontWeight: '600' }}>Coba Lagi</Text>
           </TouchableOpacity>
         </View>
-      </View>
-
-      {/* Productivity & Chart Row (Like User Reference) */}
-      <View style={styles.productivityRow}>
-        {/* Left Widget: Health Gauge */}
-        <View style={styles.productivityCard}>
-          <Text style={styles.productivityCardTitle}>Efisiensi Pabrik</Text>
-          <View style={styles.gaugeContainer}>
-            <View style={styles.customGaugeWrapper}>
-              <View style={styles.customGaugeBg} />
-              <View style={styles.customGaugeFill} />
-              <Text style={styles.gaugeValueText}>92%</Text>
-            </View>
-            <Text style={styles.gaugeSub}>Sistem Berjalan Optimal</Text>
-          </View>
-        </View>
-
-        {/* Right Widget: Daily Bar Chart */}
-        <View style={styles.productivityCard}>
-          <Text style={styles.productivityCardTitle}>Insiden (Minggu Ini)</Text>
-          <View style={styles.chartContainer}>
-            {[
-              { label: 'S', h: 10, act: false },
-              { label: 'M', h: 18, act: false },
-              { label: 'T', h: 8, act: false },
-              { label: 'W', h: 48, act: true },
-              { label: 'T', h: 14, act: false },
-            ].map((bar, idx) => (
-              <View key={idx} style={styles.chartBarGroup}>
-                <View
-                  style={[
-                    styles.chartBar,
-                    {
-                      height: bar.h,
-                      backgroundColor: bar.act ? '#15803d' : '#e2e8f0',
-                    },
-                  ]}
-                />
-                <Text style={styles.chartBarLabel}>{bar.label}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
-
-      {/* Daftar Mesin */}
-      <View style={styles.machinesSection}>
-        <View style={styles.sectionTitleRow}>
-          <Text style={[styles.sectionTitle, { paddingHorizontal: 0, marginTop: 0 }]}>Daftar Mesin</Text>
-          <Text style={styles.seeAllText}>Total: {filteredMachines.length}</Text>
-        </View>
-
-        {filteredMachines.map((machine) => {
-          const statusColor =
-            machine.status === 'healthy'
-              ? '#16a34a'
-              : machine.status === 'warning'
-              ? '#ea580c'
-              : '#dc2626';
-          
-          return (
+      ) : (
+        <>
+          <View style={styles.overviewGrid}>
             <TouchableOpacity
-              key={machine.id}
-              style={styles.machineCard}
-              onPress={() => onNavigate('machineDetail', { machine })}
+              style={[styles.bigOverviewCard, { backgroundColor: criticalCount > 0 ? '#dc2626' : '#15803d' }]}
+              onPress={() => onNavigate('notifications')}
             >
-              <View style={styles.machineCardHeader}>
-                <View style={styles.machineMeta}>
-                  <Text style={styles.machineName}>{machine.name}</Text>
-                  <Text style={styles.machineCategory}>{machine.category} • {machine.location}</Text>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
-                  <View style={[styles.statusBadgeDot, { backgroundColor: statusColor }]} />
-                  <Text style={[styles.statusBadgeText, { color: statusColor }]}>
-                    {machine.status === 'healthy' ? 'Normal' : machine.status === 'warning' ? 'Warning' : 'Kritis'}
-                  </Text>
+              <View style={styles.cardTopRow}>
+                <Text style={styles.bigCardTitle}>{criticalCount > 0 ? 'Status Bahaya (Kritis)' : 'Semua Mesin Normal'}</Text>
+                <View style={styles.whiteArrowCircle}>
+                  <ArrowUpRight size={18} color="#ffffff" />
                 </View>
               </View>
-
-              {/* Metrics Row */}
-              <View style={styles.machineMetricsRow}>
-                <View style={styles.machineMetric}>
-                  <Thermometer size={16} color="#64748b" />
-                  <Text style={styles.machineMetricText}>{machine.temp}</Text>
-                </View>
-                <View style={styles.machineMetric}>
-                  <Activity size={16} color="#64748b" />
-                  <Text style={styles.machineMetricText}>{machine.vibr}</Text>
-                </View>
-                <View style={styles.machineMetric}>
-                  <GaugeIcon size={16} color="#64748b" />
-                  <Text style={styles.machineMetricText}>{machine.pressure}</Text>
-                </View>
+              <View style={styles.bigCardValueContainer}>
+                <Text style={styles.bigCardValue}>{criticalCount > 0 ? criticalCount : machines.length}</Text>
+                <Text style={styles.bigCardSub}>
+                  {criticalCount > 0 ? `${criticalCount} mesin dalam kondisi kritis` : 'Sistem berjalan normal'}
+                </Text>
               </View>
             </TouchableOpacity>
-          );
-        })}
-      </View>
 
-      {/* Incidents Section */}
-      <View style={styles.incidentsSection}>
-        <View style={styles.sectionTitleRow}>
-          <Text style={[styles.sectionTitle, { paddingHorizontal: 0, marginTop: 0 }]}>Insiden Terbaru</Text>
-        </View>
+            <View style={styles.smallCardsRow}>
+              <TouchableOpacity style={styles.smallOverviewCard} onPress={() => setActiveCategory('Normal')}>
+                <View style={styles.cardTopRow}>
+                  <Text style={styles.smallCardTitle}>Mesin Normal</Text>
+                  <View style={styles.primaryArrowCircle}>
+                    <ArrowUpRight size={16} color="#15803d" />
+                  </View>
+                </View>
+                <View style={styles.smallCardValueContainer}>
+                  <Text style={styles.smallCardValue}>{normalCount}</Text>
+                  <Text style={styles.smallCardSub}>Sistem Aman</Text>
+                </View>
+              </TouchableOpacity>
 
-        {/* Static incidents */}
-        <View style={styles.incidentListItem}>
-          <View style={[styles.incidentCategoryIndicator, { backgroundColor: '#dc2626' }]} />
-          <View style={styles.incidentListBody}>
-            <Text style={styles.incidentListTitle}>Temperature Spike (Overheating)</Text>
-            <Text style={styles.incidentListSub}>CNC Milling #04 • 15 mnt yang lalu</Text>
-          </View>
-          <View style={[styles.severityBadge, { backgroundColor: '#dc262615' }]}>
-            <Text style={[styles.severityBadgeText, { color: '#dc2626' }]}>High</Text>
-          </View>
-        </View>
-
-        {demoIncidents.map((inc, i) => (
-          <View key={i} style={styles.incidentListItem}>
-            <View
-              style={[
-                styles.incidentCategoryIndicator,
-                {
-                  backgroundColor:
-                    inc.severity === 'High'
-                      ? '#dc2626'
-                      : inc.severity === 'Medium'
-                      ? '#ea580c'
-                      : '#16a34a',
-                },
-              ]}
-            />
-            <View style={styles.incidentListBody}>
-              <Text style={styles.incidentListTitle}>{inc.category} Report</Text>
-              <Text style={styles.incidentListSub}>{inc.machineName} • Baru saja</Text>
-            </View>
-            <View
-              style={[
-                styles.severityBadge,
-                {
-                  backgroundColor:
-                    (inc.severity === 'High'
-                      ? '#dc2626'
-                      : inc.severity === 'Medium'
-                      ? '#ea580c'
-                      : '#16a34a') + '15',
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.severityBadgeText,
-                  {
-                    color:
-                      inc.severity === 'High'
-                        ? '#dc2626'
-                        : inc.severity === 'Medium'
-                        ? '#ea580c'
-                        : '#16a34a',
-                  },
-                ]}
-              >
-                {inc.severity}
-              </Text>
+              <TouchableOpacity style={styles.smallOverviewCard} onPress={() => setActiveCategory('Warning')}>
+                <View style={styles.cardTopRow}>
+                  <Text style={styles.smallCardTitle}>Mesin Warning</Text>
+                  <View style={styles.warningArrowCircle}>
+                    <ArrowUpRight size={16} color="#d97706" />
+                  </View>
+                </View>
+                <View style={styles.smallCardValueContainer}>
+                  <Text style={styles.smallCardValue}>{warningCount}</Text>
+                  <Text style={styles.smallCardSub}>Perlu Atensi</Text>
+                </View>
+              </TouchableOpacity>
             </View>
           </View>
-        ))}
 
-        <View style={styles.incidentListItem}>
-          <View style={[styles.incidentCategoryIndicator, { backgroundColor: '#ea580c' }]} />
-          <View style={styles.incidentListBody}>
-            <Text style={styles.incidentListTitle}>Vibration Threshold Exceeded</Text>
-            <Text style={styles.incidentListSub}>Hydraulic Pump #02 • 2 jam yang lalu</Text>
-          </View>
-          <View style={[styles.severityBadge, { backgroundColor: '#ea580c15' }]}>
-            <Text style={[styles.severityBadgeText, { color: '#ea580c' }]}>Med</Text>
-          </View>
-        </View>
-      </View>
+          <View style={styles.productivityRow}>
+            <View style={styles.productivityCard}>
+              <Text style={styles.productivityCardTitle}>Insiden (Total)</Text>
+              <View style={styles.gaugeContainer}>
+                <View style={styles.customGaugeWrapper}>
+                  <View style={styles.customGaugeBg} />
+                  <View style={styles.customGaugeFill} />
+                  <Text style={styles.gaugeValueText}>{stats?.open ?? 0}</Text>
+                </View>
+                <Text style={styles.gaugeSub}>Insiden Belum Ditangani</Text>
+              </View>
+            </View>
 
+            <View style={styles.productivityCard}>
+              <Text style={styles.productivityCardTitle}>Insiden (Minggu Ini)</Text>
+              <View style={styles.chartContainer}>
+                {(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const).map((sev, idx) => {
+                  const count = sev === 'LOW' ? (stats?.low ?? 0) : sev === 'MEDIUM' ? (stats?.medium ?? 0) : sev === 'HIGH' ? (stats?.high ?? 0) : (stats?.critical ?? 0);
+                  const maxVal = Math.max(stats?.low ?? 1, stats?.medium ?? 1, stats?.high ?? 1, stats?.critical ?? 1, 1);
+                  const barH = Math.max(8, Math.round((count / maxVal) * 48));
+                  const barColor = sev === 'CRITICAL' ? '#dc2626' : sev === 'HIGH' ? '#ea580c' : sev === 'MEDIUM' ? '#f59e0b' : '#15803d';
+                  return (
+                    <View key={idx} style={styles.chartBarGroup}>
+                      <View style={[styles.chartBar, { height: barH, backgroundColor: count > 0 ? barColor : '#e2e8f0' }]} />
+                      <Text style={styles.chartBarLabel}>{sev[0]}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.machinesSection}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={[styles.sectionTitle, { paddingHorizontal: 0, marginTop: 0 }]}>Daftar Mesin</Text>
+              <Text style={styles.seeAllText}>Total: {filteredMachines.length}</Text>
+            </View>
+
+            {filteredMachines.map((machine) => {
+              const displayStatus = getMachineDisplayStatus(machine);
+              const statusColor = getStatusColor(displayStatus);
+              return (
+                <TouchableOpacity
+                  key={machine.id}
+                  style={styles.machineCard}
+                  onPress={() => onNavigate('machineDetail', { machineId: machine.id, machine })}
+                >
+                  <View style={styles.machineCardHeader}>
+                    <View style={styles.machineMeta}>
+                      <Text style={styles.machineName}>{machine.name}</Text>
+                      <Text style={styles.machineCategory}>{machine.type} • {machine.location ?? 'Tidak diketahui'}</Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
+                      <View style={[styles.statusBadgeDot, { backgroundColor: statusColor }]} />
+                      <Text style={[styles.statusBadgeText, { color: statusColor }]}>
+                        {displayStatus === 'healthy' ? 'Normal' : displayStatus === 'warning' ? 'Warning' : 'Kritis'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.machineMetricsRow}>
+                    <View style={styles.machineMetric}>
+                      <Thermometer size={16} color="#64748b" />
+                      <Text style={styles.machineMetricText}>{machine.code}</Text>
+                    </View>
+                    <View style={styles.machineMetric}>
+                      <Activity size={16} color="#64748b" />
+                      <Text style={styles.machineMetricText}>{machine.status}</Text>
+                    </View>
+                    <View style={styles.machineMetric}>
+                      <GaugeIcon size={16} color="#64748b" />
+                      <Text style={styles.machineMetricText}>{machine.type}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={styles.incidentsSection}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={[styles.sectionTitle, { paddingHorizontal: 0, marginTop: 0 }]}>Insiden Terbaru</Text>
+            </View>
+
+            {incidents.length === 0 ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#64748b', fontSize: 13 }}>Tidak ada insiden terbaru</Text>
+              </View>
+            ) : (
+              incidents.slice(0, 5).map((inc) => {
+                const sevColor =
+                  inc.severity === 'CRITICAL' ? '#dc2626' :
+                    inc.severity === 'HIGH' ? '#ea580c' :
+                      inc.severity === 'MEDIUM' ? '#f59e0b' : '#16a34a';
+                return (
+                  <View key={inc.id} style={styles.incidentListItem}>
+                    <View style={[styles.incidentCategoryIndicator, { backgroundColor: sevColor }]} />
+                    <View style={styles.incidentListBody}>
+                      <Text style={styles.incidentListTitle}>{inc.title}</Text>
+                      <Text style={styles.incidentListSub}>{inc.machine_name} • {new Date(inc.created_at).toLocaleDateString('id-ID')}</Text>
+                    </View>
+                    <View style={[styles.severityBadge, { backgroundColor: sevColor + '15' }]}>
+                      <Text style={[styles.severityBadgeText, { color: sevColor }]}>{inc.severity}</Text>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        </>
+      )}
     </ScrollView>
   );
 }

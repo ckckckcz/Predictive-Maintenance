@@ -44,6 +44,7 @@ func (s *IncidentService) CreateIncident(
 		Severity:    req.Severity,
 		Status:      models.StatusOpen,
 		RiskScore:   req.RiskScore,
+		ImageURL:    req.ImageURL,
 	}
 
 	saved, err := s.incidents.Create(ctx, incident)

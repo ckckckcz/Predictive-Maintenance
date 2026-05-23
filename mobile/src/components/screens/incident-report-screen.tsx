@@ -7,63 +7,161 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
-import { useTheme } from '@/hooks/use-theme';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadFile } from '@/api/client';
 import { Colors } from '@/constants/theme';
-import { ChevronLeft, Camera, Check } from 'lucide-react-native';
+import { ChevronLeft, Camera, Check, ChevronDown } from 'lucide-react-native';
 import { ScreenProps } from './types';
 import { styles } from './incident-report-screen.styles';
+import { useMachines } from '@/hooks/use-machines';
+import { useIncidents } from '@/hooks/use-incidents';
+import type { IncidentSeverity } from '@/api/types';
 
-export function IncidentReportScreen({ onNavigate, addDemoIncident }: ScreenProps) {
+const SEVERITY_OPTIONS: { value: IncidentSeverity; label: string; color: string; bg: string }[] = [
+  { value: 'LOW', label: 'Low', color: '#16a34a', bg: '#f0fdf4' },
+  { value: 'MEDIUM', label: 'Medium', color: '#ea580c', bg: '#fffbeb' },
+  { value: 'HIGH', label: 'High', color: '#dc2626', bg: '#fef2f2' },
+  { value: 'CRITICAL', label: 'Critical', color: '#7c3aed', bg: '#f5f3ff' },
+];
+
+export function IncidentReportScreen({ onNavigate }: ScreenProps) {
   const theme = Colors.light;
-  
-  const [machineName, setMachineName] = useState('CNC Milling #04');
-  const [category, setCategory] = useState('Overheating / Suhu Tinggi');
-  const [severity, setSeverity] = useState<'Low' | 'Medium' | 'High'>('High');
-  const [notes, setNotes] = useState('');
-  const [photoTaken, setPhotoTaken] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
 
-  const handleSubmit = () => {
-    setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setShowSuccess(true);
-      if (addDemoIncident) {
-        addDemoIncident({
-          machineName,
-          category,
-          severity,
-          notes,
+  const { machines } = useMachines();
+  const { createIncident, isSubmitting } = useIncidents();
+
+  const [selectedMachineId, setSelectedMachineId] = useState('');
+  const [showMachinePicker, setShowMachinePicker] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [severity, setSeverity] = useState<IncidentSeverity>('HIGH');
+  const [riskScore, setRiskScore] = useState('50');
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [validationError, setValidationError] = useState('');
+
+  const selectedMachine = machines.find((m) => m.id === selectedMachineId);
+
+  const handleSelectImage = async (useCamera = false) => {
+    try {
+      let result;
+      if (useCamera) {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Izin kamera diperlukan', 'Izin kamera diperlukan untuk mengambil foto bukti!');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Izin galeri diperlukan', 'Izin galeri diperlukan untuk memilih foto bukti!');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
         });
       }
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const uri = result.assets[0].uri;
+      setImageUri(uri);
+      setIsUploading(true);
+      setValidationError('');
+
+      const filename = uri.split('/').pop() || 'photo.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+      const formData = new FormData();
+      formData.append('file', {
+        uri,
+        name: filename,
+        type,
+      } as any);
+
+      const res = await uploadFile('/upload', formData);
+      setUploadedImageUrl(res.url);
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      setValidationError('Gagal mengunggah foto: ' + (err.message || err));
+      setImageUri(null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handlePhotoPress = () => {
+    if (Platform.OS === 'web') {
+      handleSelectImage(false);
+    } else {
+      Alert.alert(
+        'Pilih Foto Bukti',
+        'Ambil foto baru menggunakan kamera atau pilih foto dari galeri.',
+        [
+          { text: 'Kamera', onPress: () => handleSelectImage(true) },
+          { text: 'Galeri', onPress: () => handleSelectImage(false) },
+          { text: 'Batal', style: 'cancel' },
+        ]
+      );
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedMachineId) {
+      setValidationError('Pilih mesin yang bermasalah');
+      return;
+    }
+    if (title.trim().length < 5) {
+      setValidationError('Judul insiden minimal 5 karakter');
+      return;
+    }
+    setValidationError('');
+
+    const success = await createIncident({
+      machine_id: selectedMachineId,
+      title: title.trim(),
+      description: description.trim() || undefined,
+      severity,
+      risk_score: parseInt(riskScore, 10) || 50,
+      image_url: uploadedImageUrl || undefined,
+    });
+
+    if (success) {
+      setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
         onNavigate('dashboard');
       }, 1500);
-    }, 1500);
+    }
   };
 
   return (
-    <ScrollView style={[styles.mainScroll, { backgroundColor: '#ffffff' }]} contentContainerStyle={styles.reportScrollContainer} showsVerticalScrollIndicator={false}>
-      
-      {/* Header Row */}
-      <View style={styles.detailHeader}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => onNavigate('dashboard')} activeOpacity={0.7}>
-          <ChevronLeft size={20} color="#0f172a" />
-          <Text style={styles.backBtnText}>Kembali</Text>
-        </TouchableOpacity>
-        <Text style={styles.detailTitleText}>Lapor Insiden</Text>
-        <View style={{ width: 60 }} />
-      </View>
+    <ScrollView
+      style={[styles.mainScroll, { backgroundColor: '#ffffff' }]}
+      contentContainerStyle={styles.reportScrollContainer}
+      showsVerticalScrollIndicator={false}
+    >
 
       <View style={{ gap: 8 }}>
         <Text style={styles.reportScreenHeader}>Lapor Insiden Baru</Text>
         <Text style={styles.reportScreenDesc}>Laporkan kerusakan atau masalah mesin langsung ke sistem maintenance pusat</Text>
       </View>
 
-      {/* Success Modal Simulation */}
       {showSuccess && (
         <View style={styles.successOverlay}>
           <View style={styles.successBox}>
@@ -76,22 +174,17 @@ export function IncidentReportScreen({ onNavigate, addDemoIncident }: ScreenProp
         </View>
       )}
 
-      {/* Photo Uploader */}
       <View style={styles.formSection}>
         <Text style={styles.formLabel}>Foto Bukti Kerusakan</Text>
-        
-        <TouchableOpacity
-          style={styles.photoUploadBox}
-          onPress={() => setPhotoTaken(!photoTaken)}
-          activeOpacity={0.8}
-        >
-          {photoTaken ? (
+        <TouchableOpacity style={styles.photoUploadBox} onPress={handlePhotoPress} activeOpacity={0.8} disabled={isUploading}>
+          {isUploading ? (
+            <View style={{ alignItems: 'center', gap: 8 }}>
+              <ActivityIndicator size="large" color="#15803d" />
+              <Text style={{ fontSize: 13, color: '#64748b', fontWeight: '500' }}>Mengunggah foto...</Text>
+            </View>
+          ) : imageUri ? (
             <View style={styles.photoPreviewWrapper}>
-              <Image
-                source={require('@/assets/images/factory.png')}
-                style={styles.photoPreview}
-                resizeMode="cover"
-              />
+              <Image source={{ uri: imageUri }} style={styles.photoPreview} resizeMode="cover" />
               <View style={styles.photoBadgeOver}>
                 <Text style={styles.photoBadgeText}>FOTO TERPAUT</Text>
               </View>
@@ -104,78 +197,92 @@ export function IncidentReportScreen({ onNavigate, addDemoIncident }: ScreenProp
             </View>
           )}
         </TouchableOpacity>
+        {imageUri && !isUploading && (
+          <TouchableOpacity
+            style={{ alignSelf: 'flex-end', marginTop: -4 }}
+            onPress={() => { setImageUri(null); setUploadedImageUrl(null); }}
+          >
+            <Text style={{ fontSize: 13, color: '#dc2626', fontWeight: '600' }}>Hapus Foto</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Machine selector */}
       <View style={styles.formSection}>
-        <Text style={styles.formLabel}>Pilih Mesin Bermasalah</Text>
+        <Text style={styles.formLabel}>Pilih Mesin Bermasalah <Text style={{ color: '#dc2626' }}>*</Text></Text>
+        <TouchableOpacity
+          style={[styles.formTextInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+          onPress={() => setShowMachinePicker(!showMachinePicker)}
+          activeOpacity={0.7}
+        >
+          <Text style={{ color: selectedMachine ? '#0f172a' : '#94a3b8', fontSize: 14 }}>
+            {selectedMachine ? `${selectedMachine.name} (${selectedMachine.code})` : 'Pilih mesin...'}
+          </Text>
+          <ChevronDown size={18} color="#64748b" />
+        </TouchableOpacity>
+
+        {showMachinePicker && (
+          <View style={{ backgroundColor: '#f8fafc', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', marginTop: 4 }}>
+            {machines.map((m) => (
+              <TouchableOpacity
+                key={m.id}
+                style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}
+                onPress={() => { setSelectedMachineId(m.id); setShowMachinePicker(false); }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#0f172a' }}>{m.name}</Text>
+                <Text style={{ fontSize: 12, color: '#64748b' }}>{m.code} • {m.type}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <View style={styles.formSection}>
+        <Text style={styles.formLabel}>Judul Insiden <Text style={{ color: '#dc2626' }}>*</Text></Text>
         <TextInput
           style={styles.formTextInput}
-          value={machineName}
-          onChangeText={setMachineName}
-          placeholder="Contoh: CNC Milling #04"
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Contoh: Suhu mesin melebihi batas normal"
           placeholderTextColor="#94a3b8"
         />
       </View>
 
-      {/* Category Dropdown representation */}
-      <View style={styles.formSection}>
-        <Text style={styles.formLabel}>Kategori Masalah</Text>
-        <TextInput
-          style={styles.formTextInput}
-          value={category}
-          onChangeText={setCategory}
-          placeholder="Contoh: Overheating"
-          placeholderTextColor="#94a3b8"
-        />
-      </View>
-
-      {/* Severity selection segments */}
       <View style={styles.formSection}>
         <Text style={styles.formLabel}>Tingkat Keparahan (Severity)</Text>
         <View style={styles.severitySegmentRow}>
-          <TouchableOpacity
-            style={[
-              styles.severitySegment,
-              severity === 'Low' && { borderColor: '#16a34a', backgroundColor: '#f0fdf4' },
-            ]}
-            onPress={() => setSeverity('Low')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.severityText, severity === 'Low' && { color: '#16a34a', fontWeight: '700' }]}>Low</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.severitySegment,
-              severity === 'Medium' && { borderColor: '#ea580c', backgroundColor: '#fffbeb' },
-            ]}
-            onPress={() => setSeverity('Medium')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.severityText, severity === 'Medium' && { color: '#ea580c', fontWeight: '700' }]}>Medium</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.severitySegment,
-              severity === 'High' && { borderColor: '#dc2626', backgroundColor: '#fef2f2' },
-            ]}
-            onPress={() => setSeverity('High')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.severityText, severity === 'High' && { color: '#dc2626', fontWeight: '700' }]}>High</Text>
-          </TouchableOpacity>
+          {SEVERITY_OPTIONS.map((opt) => (
+            <TouchableOpacity
+              key={opt.value}
+              style={[styles.severitySegment, severity === opt.value && { borderColor: opt.color, backgroundColor: opt.bg }]}
+              onPress={() => setSeverity(opt.value)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.severityText, severity === opt.value && { color: opt.color, fontWeight: '700' }]}>
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
-      {/* Notes / Deskripsi field */}
+      <View style={styles.formSection}>
+        <Text style={styles.formLabel}>Risk Score (0–100)</Text>
+        <TextInput
+          style={styles.formTextInput}
+          value={riskScore}
+          onChangeText={setRiskScore}
+          keyboardType="numeric"
+          placeholder="50"
+          placeholderTextColor="#94a3b8"
+        />
+      </View>
+
       <View style={styles.formSection}>
         <Text style={styles.formLabel}>Catatan Detail Masalah</Text>
         <TextInput
           style={styles.formTextArea}
-          value={notes}
-          onChangeText={setNotes}
+          value={description}
+          onChangeText={setDescription}
           multiline
           numberOfLines={4}
           placeholder="Tuliskan detail kronologi masalah, anomali sensor, atau kode kesalahan yang muncul..."
@@ -183,9 +290,14 @@ export function IncidentReportScreen({ onNavigate, addDemoIncident }: ScreenProp
         />
       </View>
 
-      {/* Submit Report Button */}
+      {validationError !== '' && (
+        <View style={{ backgroundColor: '#fef2f2', borderRadius: 8, padding: 12 }}>
+          <Text style={{ color: '#dc2626', fontSize: 13, fontWeight: '600' }}>{validationError}</Text>
+        </View>
+      )}
+
       <TouchableOpacity
-        style={styles.submitReportBtn}
+        style={[styles.submitReportBtn, isSubmitting && { opacity: 0.7 }]}
         onPress={handleSubmit}
         disabled={isSubmitting}
         activeOpacity={0.8}

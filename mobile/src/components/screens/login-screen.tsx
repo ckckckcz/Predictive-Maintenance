@@ -6,26 +6,32 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { ScreenProps } from './types';
 import { styles } from './login-screen.styles';
 import { EyeIcon, EyeOffIcon } from '@/components/ui/icons';
+import { useAuth } from '@/hooks/use-auth';
 
 export function LoginScreen({ onNavigate }: ScreenProps) {
   const theme = Colors.light;
-  const [email, setEmail] = useState('operator@greenfields.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = () => {
-    onNavigate('dashboard');
+  const { login, isLoading, error } = useAuth();
+
+  const handleLogin = async () => {
+    const success = await login(email, password);
+    if (success) {
+      onNavigate('dashboard');
+    }
   };
 
   return (
     <View style={styles.loginContainer}>
       <ScrollView contentContainerStyle={styles.loginScrollContent} showsVerticalScrollIndicator={false}>
-        {/* Brand Header: horizontal row */}
         <View style={styles.loginBrandContainer}>
           <Image
             source={require('@/assets/images/greenfields.png')}
@@ -34,7 +40,6 @@ export function LoginScreen({ onNavigate }: ScreenProps) {
           />
         </View>
 
-        {/* Welcome Section */}
         <View style={styles.welcomeContainer}>
           <Text style={styles.welcomeTitle}>Welcome Back!</Text>
           <Text style={styles.welcomeSubtitle}>
@@ -42,9 +47,7 @@ export function LoginScreen({ onNavigate }: ScreenProps) {
           </Text>
         </View>
 
-        {/* Inputs Section */}
         <View style={styles.inputsContainer}>
-          {/* Email Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>
               Email <Text style={{ color: '#dc2626' }}>*</Text>
@@ -58,11 +61,11 @@ export function LoginScreen({ onNavigate }: ScreenProps) {
                 placeholderTextColor={theme.textSecondary}
                 autoCapitalize="none"
                 keyboardType="email-address"
+                editable={!isLoading}
               />
             </View>
           </View>
 
-          {/* Password Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>
               Password <Text style={{ color: '#dc2626' }}>*</Text>
@@ -76,6 +79,7 @@ export function LoginScreen({ onNavigate }: ScreenProps) {
                 placeholder="Enter your password"
                 placeholderTextColor={theme.textSecondary}
                 autoCapitalize="none"
+                editable={!isLoading}
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
@@ -92,23 +96,31 @@ export function LoginScreen({ onNavigate }: ScreenProps) {
           </View>
         </View>
 
-        {/* Forgot Password */}
+        {error && (
+          <View style={{ backgroundColor: '#fef2f2', borderRadius: 8, padding: 12 }}>
+            <Text style={{ color: '#dc2626', fontSize: 13, fontWeight: '600' }}>{error}</Text>
+          </View>
+        )}
+
         <View style={styles.forgotPasswordRow}>
           <TouchableOpacity activeOpacity={0.7}>
             <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Log In Button */}
         <TouchableOpacity
-          style={styles.loginSubmitBtn}
+          style={[styles.loginSubmitBtn, isLoading && { opacity: 0.7 }]}
           onPress={handleLogin}
           activeOpacity={0.8}
+          disabled={isLoading}
         >
-          <Text style={styles.loginSubmitBtnText}>Login</Text>
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#ffffff" />
+          ) : (
+            <Text style={styles.loginSubmitBtnText}>Login</Text>
+          )}
         </TouchableOpacity>
 
-        {/* Footer */}
         <View style={styles.loginFooter}>
           <TouchableOpacity activeOpacity={0.7}>
             <Text style={styles.loginFooterText}>

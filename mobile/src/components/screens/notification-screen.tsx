@@ -1,17 +1,48 @@
 import React from 'react';
-import { ScrollView, View, Text, TouchableOpacity } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { Colors } from '@/constants/theme';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, CheckCircle2 } from 'lucide-react-native';
 import { ScreenProps } from './types';
 import { styles } from './notification-screen.styles';
+import { useIncidents } from '@/hooks/use-incidents';
+import type { IncidentSeverity, IncidentStatus } from '@/api/types';
+
+function getSeverityConfig(severity: IncidentSeverity): { label: string; color: string; bg: string } {
+  switch (severity) {
+    case 'CRITICAL': return { label: 'CRITICAL ALARM', color: '#dc2626', bg: '#dc262615' };
+    case 'HIGH':     return { label: 'HIGH ALERT', color: '#ea580c', bg: '#fffbeb' };
+    case 'MEDIUM':   return { label: 'ANOMALY WARNING', color: '#f59e0b', bg: '#fffbeb' };
+    default:         return { label: 'INFORMASI', color: '#16a34a', bg: '#16a34a15' };
+  }
+}
+
+function getStatusLabel(status: IncidentStatus): string {
+  if (status === 'OPEN') return 'Belum ditangani';
+  if (status === 'IN_PROGRESS') return 'Sedang ditangani';
+  return 'Selesai';
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  if (days > 0) return `${days} hari lalu`;
+  if (hours > 0) return `${hours} jam lalu`;
+  if (mins > 0) return `${mins} mnt lalu`;
+  return 'Baru saja';
+}
 
 export function NotificationScreen({ onNavigate }: ScreenProps) {
   const theme = Colors.light;
+  const { incidents, isLoading, refresh, acknowledgeIncident } = useIncidents({ limit: 30 });
 
   return (
-    <ScrollView style={[styles.mainScroll, { backgroundColor: '#ffffff' }]} showsVerticalScrollIndicator={false}>
-      
-      {/* Top Header Row */}
+    <ScrollView
+      style={[styles.mainScroll, { backgroundColor: '#ffffff' }]}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refresh} tintColor="#15803d" />}
+    >
       <View style={styles.detailHeader}>
         <TouchableOpacity style={styles.backBtn} onPress={() => onNavigate('dashboard')} activeOpacity={0.7}>
           <ChevronLeft size={20} color="#0f172a" />
@@ -24,61 +55,52 @@ export function NotificationScreen({ onNavigate }: ScreenProps) {
       <View style={styles.notificationsContainer}>
         <View style={{ gap: 8 }}>
           <Text style={styles.reportScreenHeader}>Notifikasi & Alarm</Text>
-          <Text style={styles.reportScreenDesc}>Pemberitahuan alarm, deteksi anomali, dan penugasan maintenance</Text>
+          <Text style={styles.reportScreenDesc}>Pemberitahuan alarm, deteksi anomali, dan laporan insiden</Text>
         </View>
 
         <View style={styles.notificationList}>
-          {/* Critical alert */}
-          <View style={styles.notifItem}>
-            <View style={[styles.notifStatusMarker, { backgroundColor: '#dc2626' }]} />
-            <View style={styles.notifBody}>
-              <View style={styles.notifHeaderRow}>
-                <Text style={[styles.notifBadgeLabel, { color: '#dc2626', backgroundColor: '#dc262615' }]}>CRITICAL ALARM</Text>
-                <Text style={styles.notifTime}>14:23</Text>
-              </View>
-              <Text style={styles.notifTitle}>Suhu Ekstrim CNC Milling #04</Text>
-              <Text style={styles.notifDesc}>Sensor mendeteksi suhu melebihi batas operasional (82.4°C / Max 80°C). Segera periksa kipas pendingin.</Text>
+          {isLoading && incidents.length === 0 ? (
+            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#15803d" />
+              <Text style={{ color: '#64748b', marginTop: 12, fontSize: 13 }}>Memuat notifikasi...</Text>
             </View>
-          </View>
-
-          {/* Warning Alert */}
-          <View style={styles.notifItem}>
-            <View style={[styles.notifStatusMarker, { backgroundColor: '#ea580c' }]} />
-            <View style={styles.notifBody}>
-              <View style={styles.notifHeaderRow}>
-                <Text style={[styles.notifBadgeLabel, { color: '#ea580c', backgroundColor: '#fffbeb' }]}>ANOMALY WARNING</Text>
-                <Text style={styles.notifTime}>11:05</Text>
-              </View>
-              <Text style={styles.notifTitle}>Getaran Tidak Stabil Hydraulic Pump #02</Text>
-              <Text style={styles.notifDesc}>Getaran pada motor pompa meningkat ke 3.1 mm/s. Status diubah ke siaga (Warning).</Text>
+          ) : incidents.length === 0 ? (
+            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+              <CheckCircle2 size={48} color="#16a34a" />
+              <Text style={{ color: '#16a34a', marginTop: 12, fontSize: 15, fontWeight: '700' }}>Tidak ada insiden aktif</Text>
+              <Text style={{ color: '#64748b', marginTop: 4, fontSize: 13 }}>Semua sistem berjalan normal</Text>
             </View>
-          </View>
-
-          {/* Maintenance Reminder */}
-          <View style={styles.notifItem}>
-            <View style={[styles.notifStatusMarker, { backgroundColor: '#15803d' }]} />
-            <View style={styles.notifBody}>
-              <View style={styles.notifHeaderRow}>
-                <Text style={[styles.notifBadgeLabel, { color: '#15803d', backgroundColor: '#f0fdf4' }]}>MAINTENANCE REMINDER</Text>
-                <Text style={styles.notifTime}>Kemarin, 08:00</Text>
-              </View>
-              <Text style={styles.notifTitle}>Jadwal Kalibrasi Mingguan Conveyor A</Text>
-              <Text style={styles.notifDesc}>Pengingat rutin kalibrasi sensor kecepatan dan encoder conveyor line A agar presisi output tetap terjaga.</Text>
-            </View>
-          </View>
-
-          {/* Informational Notification */}
-          <View style={styles.notifItem}>
-            <View style={[styles.notifStatusMarker, { backgroundColor: '#16a34a' }]} />
-            <View style={styles.notifBody}>
-              <View style={styles.notifHeaderRow}>
-                <Text style={[styles.notifBadgeLabel, { color: '#16a34a', backgroundColor: '#16a34a15' }]}>SYSTEM STABLE</Text>
-                <Text style={styles.notifTime}>22 Mei, 06:12</Text>
-              </View>
-              <Text style={styles.notifTitle}>Konektivitas IoT Gateway Pulih</Text>
-              <Text style={styles.notifDesc}>Semua sensor IoT node di Area B berhasil melakukan sinkronisasi ulang data parameter pasca pemeliharaan server.</Text>
-            </View>
-          </View>
+          ) : (
+            incidents.map((inc) => {
+              const { label, color, bg } = getSeverityConfig(inc.severity);
+              return (
+                <View key={inc.id} style={styles.notifItem}>
+                  <View style={[styles.notifStatusMarker, { backgroundColor: color }]} />
+                  <View style={styles.notifBody}>
+                    <View style={styles.notifHeaderRow}>
+                      <Text style={[styles.notifBadgeLabel, { color, backgroundColor: bg }]}>{label}</Text>
+                      <Text style={styles.notifTime}>{timeAgo(inc.created_at)}</Text>
+                    </View>
+                    <Text style={styles.notifTitle}>{inc.title}</Text>
+                    <Text style={styles.notifDesc}>
+                      {inc.machine_name} ({inc.machine_code}) — {getStatusLabel(inc.status)}
+                      {inc.description ? `\n${inc.description}` : ''}
+                    </Text>
+                    {inc.status === 'OPEN' && (
+                      <TouchableOpacity
+                        style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' }}
+                        onPress={() => acknowledgeIncident(inc.id)}
+                        activeOpacity={0.7}
+                      >
+                        <CheckCircle2 size={14} color="#15803d" />
+                        <Text style={{ color: '#15803d', fontSize: 12, fontWeight: '700' }}>Akui Insiden</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })
+          )}
         </View>
       </View>
     </ScrollView>

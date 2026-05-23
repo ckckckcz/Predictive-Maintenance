@@ -41,14 +41,14 @@ func NewIncidentRepository(pool *pgxpool.Pool) IncidentRepository {
 
 const (
 	queryCreateIncident = `
-		INSERT INTO incidents (machine_id, reading_id, title, description, severity, status, risk_score)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, machine_id, reading_id, title, description, severity, status, risk_score,
+		INSERT INTO incidents (machine_id, reading_id, title, description, severity, status, risk_score, image_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, machine_id, reading_id, title, description, severity, status, risk_score, image_url,
 		          acknowledged_by, acknowledged_at, resolved_by, resolved_at, deleted_at, created_at, updated_at`
 
 	queryFindIncidentByID = `
 		SELECT i.id, i.machine_id, i.reading_id, i.title, i.description, i.severity, i.status,
-		       i.risk_score, i.acknowledged_by, i.acknowledged_at, i.resolved_by, i.resolved_at,
+		       i.risk_score, i.image_url, i.acknowledged_by, i.acknowledged_at, i.resolved_by, i.resolved_at,
 		       i.deleted_at, i.created_at, i.updated_at,
 		       m.name AS machine_name, m.code AS machine_code,
 		       u1.name AS acknowledged_by_name, u2.name AS resolved_by_name
@@ -89,7 +89,7 @@ const (
 func (r *incidentRepository) Create(ctx context.Context, i *models.Incident) (*models.Incident, error) {
 	row := r.pool.QueryRow(ctx, queryCreateIncident,
 		i.MachineID, i.ReadingID, i.Title, i.Description,
-		i.Severity, i.Status, i.RiskScore,
+		i.Severity, i.Status, i.RiskScore, i.ImageURL,
 	)
 	return scanIncident(row)
 }
@@ -121,7 +121,7 @@ func (r *incidentRepository) List(ctx context.Context, f models.IncidentFilter) 
 	argIdx := len(args) + 1
 	listSQL := fmt.Sprintf(`
 		SELECT i.id, i.machine_id, i.reading_id, i.title, i.description, i.severity, i.status,
-		       i.risk_score, i.acknowledged_by, i.acknowledged_at, i.resolved_by, i.resolved_at,
+		       i.risk_score, i.image_url, i.acknowledged_by, i.acknowledged_at, i.resolved_by, i.resolved_at,
 		       i.deleted_at, i.created_at, i.updated_at,
 		       m.name AS machine_name, m.code AS machine_code,
 		       u1.name AS acknowledged_by_name, u2.name AS resolved_by_name
@@ -210,11 +210,11 @@ func scanIncident(row rowScanner) (*models.Incident, error) {
 	var i models.Incident
 	var readingID, acknowledgedBy, resolvedBy pgtype.UUID
 	var acknowledgedAt, resolvedAt, deletedAt pgtype.Timestamptz
-	var description pgtype.Text
+	var description, imageURL pgtype.Text
 
 	err := row.Scan(
 		&i.ID, &i.MachineID, &readingID, &i.Title, &description,
-		&i.Severity, &i.Status, &i.RiskScore,
+		&i.Severity, &i.Status, &i.RiskScore, &imageURL,
 		&acknowledgedBy, &acknowledgedAt, &resolvedBy, &resolvedAt,
 		&deletedAt, &i.CreatedAt, &i.UpdatedAt,
 	)
@@ -231,6 +231,9 @@ func scanIncident(row rowScanner) (*models.Incident, error) {
 	if description.Valid {
 		i.Description = &description.String
 	}
+	if imageURL.Valid {
+		i.ImageURL = &imageURL.String
+	}
 	return &i, nil
 }
 
@@ -238,11 +241,11 @@ func scanIncidentWithDetails(row rowScanner) (*models.IncidentWithDetails, error
 	var iwd models.IncidentWithDetails
 	var readingID, acknowledgedBy, resolvedBy pgtype.UUID
 	var acknowledgedAt, resolvedAt, deletedAt pgtype.Timestamptz
-	var description, acknowledgedByName, resolvedByName pgtype.Text
+	var description, imageURL, acknowledgedByName, resolvedByName pgtype.Text
 
 	err := row.Scan(
 		&iwd.ID, &iwd.MachineID, &readingID, &iwd.Title, &description,
-		&iwd.Severity, &iwd.Status, &iwd.RiskScore,
+		&iwd.Severity, &iwd.Status, &iwd.RiskScore, &imageURL,
 		&acknowledgedBy, &acknowledgedAt, &resolvedBy, &resolvedAt,
 		&deletedAt, &iwd.CreatedAt, &iwd.UpdatedAt,
 		&iwd.MachineName, &iwd.MachineCode,
@@ -260,6 +263,9 @@ func scanIncidentWithDetails(row rowScanner) (*models.IncidentWithDetails, error
 	iwd.DeletedAt = nullableTime(deletedAt)
 	if description.Valid {
 		iwd.Description = &description.String
+	}
+	if imageURL.Valid {
+		iwd.ImageURL = &imageURL.String
 	}
 	if acknowledgedByName.Valid {
 		iwd.AcknowledgedByName = &acknowledgedByName.String

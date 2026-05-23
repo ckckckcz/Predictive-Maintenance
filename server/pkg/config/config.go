@@ -19,6 +19,13 @@ type Config struct {
 	Expo       ExpoConfig
 	Simulator  SimulatorConfig
 	OpenRouter OpenRouterConfig
+	Supabase   SupabaseConfig
+}
+
+type SupabaseConfig struct {
+	URL    string
+	Key    string
+	Bucket string
 }
 
 type AppConfig struct {
@@ -135,6 +142,11 @@ func Load() (*Config, error) {
 	// --- OpenRouter ---
 	cfg.OpenRouter.APIKey = getEnv("OPENROUTER_API_KEY", "")
 	cfg.OpenRouter.Model = getEnv("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
+
+	// --- Supabase ---
+	cfg.Supabase.URL = getEnv("SUPABASE_URL", "")
+	cfg.Supabase.Key = getEnv("SUPABASE_KEY", "")
+	cfg.Supabase.Bucket = getEnv("SUPABASE_BUCKET", "incident-images")
 
 	return cfg, nil
 }

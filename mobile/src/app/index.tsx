@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Platform,
   StyleSheet,
@@ -30,47 +30,44 @@ import {
   CheckIcon,
 } from '@/components/ui/icons';
 import { Home, ShieldAlert, Bell, User } from 'lucide-react-native';
+import { useAuth } from '@/hooks/use-auth';
+import type { UserPublic } from '@/api/types';
 
 export default function App() {
-  // Theme state
   const systemScheme = useColorScheme();
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(
     systemScheme === 'dark' ? 'dark' : 'light'
   );
-
-  // Screen navigation state
-  // Possible screens: 'splash', 'onboarding1', 'onboarding2', 'onboarding3', 'login', 'dashboard', 'machineDetail', 'incidentReport', 'notifications', 'profile'
   const [currentScreen, setCurrentScreen] = useState<string>('splash');
   const [screenParams, setScreenParams] = useState<any>(null);
-
-  // Persistent Demo states (e.g., adding dynamic incident reports)
-  const [demoIncidents, setDemoIncidents] = useState<any[]>([]);
-
-  // Showcase panel state
   const [showcaseOpen, setShowcaseOpen] = useState(false);
+  const [loggedInUser, setLoggedInUser] = useState<UserPublic | null>(null);
 
-  // Theme configuration overrides based on themeMode state
   const theme = Colors[themeMode];
+  const { loadStoredSession } = useAuth();
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      const user = await loadStoredSession();
+      if (user) {
+        setLoggedInUser(user);
+        setCurrentScreen('dashboard');
+      }
+    };
+    restoreSession();
+  }, []);
 
   const handleNavigate = (screenName: string, params?: any) => {
     setCurrentScreen(screenName);
-    if (params) {
-      setScreenParams(params);
-    }
+    if (params) setScreenParams(params);
   };
 
-  const addDemoIncident = (incident: any) => {
-    setDemoIncidents([incident, ...demoIncidents]);
-  };
-
-  // Render the current screen view
   const renderScreenContent = () => {
     const props = {
       themeMode,
       setThemeMode,
       onNavigate: handleNavigate,
-      demoIncidents,
-      addDemoIncident,
+      user: loggedInUser,
     };
 
     switch (currentScreen) {
@@ -98,6 +95,7 @@ export default function App() {
         return <DashboardScreen {...props} />;
     }
   };
+
 
   // Determine if we should show the bottom navigation tabs
   const showBottomTabs = [
@@ -131,16 +129,6 @@ export default function App() {
   // Mobile layout container inside web browser
   const AppContent = (
     <View style={[styles.phoneShell, { backgroundColor: theme.background }]}>
-      {/* Simulated Device Status Bar */}
-      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} />
-      <View style={[styles.statusBarSimulator, { backgroundColor: theme.background }]}>
-        <Text style={[styles.statusBarTime, { color: theme.text }]}>09:41</Text>
-        <View style={styles.statusBarIcons}>
-          <Text style={[styles.statusBarIconText, { color: theme.text }]}>📶</Text>
-          <Text style={[styles.statusBarIconText, { color: theme.text }]}>🔋</Text>
-        </View>
-      </View>
-
       {/* Screen Render Container */}
       <View style={styles.screenContainer}>{renderScreenContent()}</View>
 
@@ -283,7 +271,7 @@ export default function App() {
             <Text style={styles.showcaseToggleText}>
               {showcaseOpen ? 'Sembunyikan Menu' : 'Pilih Screen (10 Screens)'}
             </Text>
-            {showcaseOpen ? <Text style={{color: '#fff'}}>✕</Text> : <View style={styles.pulseDot} />}
+            {showcaseOpen ? <Text style={{ color: '#fff' }}>✕</Text> : <View style={styles.pulseDot} />}
           </TouchableOpacity>
 
           {showcaseOpen && (

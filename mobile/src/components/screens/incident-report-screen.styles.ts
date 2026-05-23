@@ -37,14 +37,14 @@ export const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0f172a',
     letterSpacing: -0.5,
+    marginBottom: 4,
   },
   reportScreenDesc: {
     fontSize: 14,
     fontWeight: '500',
     color: '#64748b',
     lineHeight: 20,
-    marginTop: -10,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   formSection: {
     gap: 8,

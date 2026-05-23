@@ -9,6 +9,17 @@ VALUES (
     true
 ) ON CONFLICT (email) DO NOTHING;
 
+-- Initial Operator Account
+INSERT INTO users (name, email, password, role, phone, is_active)
+VALUES (
+    'Bob Smith',
+    'operator@greenfields.com',
+    '$2a$12$ihi1DdKsqhSypALHfa9f.ecdYz3NPYHBLpT2ogc7we58ystT/yxm2',
+    'OPERATOR',
+    '+6289876543210',
+    true
+) ON CONFLICT (email) DO NOTHING;
+
 -- 5 Virtual Machines
 INSERT INTO machines (name, code, type, location, status) VALUES
     ('Mesin Pasteurisasi #1',  'PST-001', 'PASTEURISASI', 'Lantai 1 - Area A', 'ACTIVE'),
