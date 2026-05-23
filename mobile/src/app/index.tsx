@@ -90,7 +90,7 @@ export default function App() {
       case 'incidentReport':
         return <IncidentReportScreen {...props} />;
       case 'notifications':
-        return <NotificationScreen />;
+        return <NotificationScreen {...props} />;
       case 'profile':
         return <ProfileScreen {...props} />;
       default:

@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: ./server
+      dockerfile: DockerFile
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./server/.env
+    restart: always
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      # Map the exported Next.js static build directory to Nginx's HTML root
+      - ./client/out:/usr/share/nginx/html:ro
+      # Map the custom Nginx configuration to Nginx's default config slot
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    restart: always

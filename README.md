@@ -183,4 +183,120 @@ Sistem ini menggunakan Supabase PostgreSQL untuk menyimpan semua data relasional
 
 ---
 
+## 📦 Strategi & Panduan Deployment Produksi (VM 1 Core / 2 GB RAM)
+
+Untuk target infrastruktur dengan spesifikasi terbatas (**CPU 1 Core, 2 GB RAM, Ubuntu 22.04 LTS**), menjalankan Next.js dalam mode Server (SSR) sangat berisiko memicu **OOM (Out of Memory) Crash** karena proses Node.js yang memakan banyak memori. 
+
+Oleh karena itu, strategi deployment terbaik yang direkomendasikan adalah **Next.js Tanpa SSR (Static Export / SPA Mode) + Nginx Reverse Proxy + Go Systemd Service**.
+
+### 1. Keuntungan Arsitektur ini di VM Terbatas:
+*   **Performa Ekstrim & Hemat RAM**: Nginx hanya memakan RAM sekitar 10-15 MB untuk menyajikan file statis.
+*   **Tanpa Node.js di Production**: Tidak perlu menjalankan runtime Node.js di server, sehingga memori 2 GB RAM sepenuhnya bisa dialokasikan untuk OS, database Supabase pooler, dan Go backend.
+*   **Bebas CORS**: Nginx bertindak sebagai reverse proxy yang menyajikan Frontend di `/` dan mem-proxy API Go Backend di `/api`, sehingga berada di satu port (port 80/443) tanpa membutuhkan konfigurasi CORS.
+
+### 2. Konfigurasi Next.js Static Export
+1.  Buka `client/next.config.ts` dan tambahkan baris `output: 'export'` serta `trailingSlash: true`:
+    ```typescript
+    const nextConfig: NextConfig = {
+      output: 'export',
+      trailingSlash: true,
+      // konfigurasi lainnya...
+    };
+    ```
+2.  Lakukan proses build di **komputer lokal / CI-CD pipeline** (JANGAN menjalankan `pnpm build` di VM 2GB karena RAM tidak akan cukup untuk proses kompilasi Next.js):
+    ```bash
+    cd client
+    pnpm build
+    ```
+    Perintah ini akan menghasilkan folder **`out/`** yang berisi file HTML, JS, dan CSS murni.
+3.  Kompres dan transfer folder `out/` ke VM Ubuntu Anda menggunakan `scp` atau SFTP:
+    ```bash
+    tar -czf client-dist.tar.gz out/
+    scp client-dist.tar.gz user@ip-vm-greenfields:/var/www/predictive-maintenance/
+    ```
+
+### 3. Konfigurasi Nginx di VM Ubuntu
+1.  Instal Nginx di VM Ubuntu:
+    ```bash
+    sudo apt update
+    sudo apt install nginx -y
+    ```
+2.  Ekstrak file frontend di `/var/www/predictive-maintenance/`:
+    ```bash
+    cd /var/www/predictive-maintenance/
+    tar -xzf client-dist.tar.gz
+    ```
+3.  Buat konfigurasi server block Nginx baru di `/etc/nginx/sites-available/predictive-maintenance`:
+    ```nginx
+    server {
+        listen 80;
+        server_name _; # Ganti dengan IP VM atau domain lokal jika ada
+
+        root /var/www/predictive-maintenance/out;
+        index index.html;
+
+        # Menyajikan Frontend Next.js (SPA router fallback)
+        location / {
+            try_files $uri $uri/ $uri.html /index.html;
+        }
+
+        # Reverse Proxy untuk Go Backend API
+        location /api {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+    }
+    ```
+4.  Aktifkan konfigurasi dan restart Nginx:
+    ```bash
+    sudo ln -s /etc/nginx/sites-available/predictive-maintenance /etc/nginx/sites-enabled/
+    sudo nginx -t
+    sudo systemctl restart nginx
+    ```
+
+### 4. Menjalankan Go Backend sebagai Daemon (Systemd)
+Agar aplikasi backend Go berjalan di background secara otomatis saat VM dinyalakan dan otomatis restart jika crash:
+
+1.  Lakukan build binary Go di VM:
+    ```bash
+    cd /home/user/Predictive-Maintenance/server
+    go build -o server-bin main.go
+    ```
+2.  Buat file service systemd di `/etc/systemd/system/predictive-maintenance-backend.service`:
+    ```ini
+    [Unit]
+    Description=Greenfields Predictive Maintenance Go Backend
+    After=network.target
+
+    [Service]
+    Type=simple
+    User=ubuntu
+    WorkingDirectory=/home/user/Predictive-Maintenance/server
+    ExecStart=/home/user/Predictive-Maintenance/server/server-bin
+    Restart=always
+    RestartSec=5
+    EnvironmentFile=/home/user/Predictive-Maintenance/server/.env
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+3.  Aktifkan dan jalankan service:
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl enable predictive-maintenance-backend
+    sudo systemctl start predictive-maintenance-backend
+    ```
+4.  Cek status service untuk memastikan backend berjalan dengan lancar:
+    ```bash
+    sudo systemctl status predictive-maintenance-backend
+    ```
+
+---
+
 **© 2026 (Bismillah) Intern PT. Greenfields Indonesia*
