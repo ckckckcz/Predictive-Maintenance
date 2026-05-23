@@ -1,127 +1,167 @@
 import React, { useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, Switch } from 'react-native';
-import { useTheme } from '@/hooks/use-theme';
+import { Colors } from '@/constants/theme';
 import {
-  MoonIcon,
-  SunIcon,
-  BellIcon,
-  SettingsIcon,
-  LogOutIcon,
-} from '@/components/ui/icons';
+  Moon,
+  Sun,
+  Bell,
+  FileText,
+  LogOut,
+  ChevronRight,
+  User,
+  Settings,
+  Info,
+} from 'lucide-react-native';
 import { ScreenProps } from './types';
 import { styles } from './profile-screen.styles';
 
 export function ProfileScreen({ themeMode, setThemeMode, onNavigate }: ScreenProps) {
-  const theme = useTheme();
+  const theme = Colors.light;
   const [notifyMails, setNotifyMails] = useState(true);
   const [notifyPush, setNotifyPush] = useState(true);
 
   return (
-    <ScrollView style={[styles.mainScroll, { backgroundColor: theme.background }]} contentContainerStyle={styles.profileScrollContainer}>
-      <Text style={[styles.reportScreenHeader, { color: theme.text }]}>Profil & Pengaturan</Text>
+    <ScrollView style={[styles.mainScroll, { backgroundColor: '#ffffff' }]} contentContainerStyle={styles.profileScrollContainer} showsVerticalScrollIndicator={false}>
+      <Text style={styles.profileScreenHeader}>My Profile</Text>
       
       {/* Profile Card Info */}
-      <View style={[styles.profileCard, { borderColor: theme.border, backgroundColor: theme.cardBg }]}>
+      <View style={styles.profileCard}>
         <View style={styles.profileAvatarRow}>
-          <View style={[styles.avatarBox, { backgroundColor: theme.primary }]}>
-            <Text style={styles.avatarLetter}>PW</Text>
-          </View>
-          <View style={styles.profileMeta}>
-            <Text style={[styles.profileNameText, { color: theme.text }]}>Prasetyo Wibowo</Text>
-            <Text style={[styles.profileEmailText, { color: theme.textSecondary }]}>prasetyo.w@greenfields.com</Text>
-            
-            <View style={styles.badgeRow}>
-              <Text style={[styles.profileBadge, { backgroundColor: theme.primaryLight, color: theme.primary }]}>
-                Field Operator
-              </Text>
-              <Text style={[styles.profileBadge, { backgroundColor: theme.backgroundElement, color: theme.textSecondary }]}>
-                Shift Pagi
-              </Text>
+          <View style={styles.avatarWrapper}>
+            <View style={styles.avatarBox}>
+              <Text style={styles.avatarLetter}>PW</Text>
             </View>
+            <View style={styles.onlineIndicator} />
           </View>
+          <TouchableOpacity style={styles.editPhotoBtn} activeOpacity={0.7}>
+            <Text style={styles.editPhotoBtnText}>Edit Image</Text>
+          </TouchableOpacity>
         </View>
+
+        <Text style={styles.timeInfoText}>Shift Pagi • Area Produksi A</Text>
+        <Text style={styles.profileNameText}>Prasetyo Wibowo</Text>
+        <Text style={styles.profileEmailText}>prasetyo.w@greenfields.com</Text>
       </View>
 
-      {/* App Preferences */}
-      <Text style={[styles.profileSectionTitle, { color: theme.text }]}>Preferensi Aplikasi</Text>
-      
-      <View style={[styles.settingsGroupCard, { borderColor: theme.border, backgroundColor: theme.cardBg }]}>
-        {/* Toggle Dark Mode */}
-        <View style={[styles.settingsRow, { borderBottomColor: theme.border }]}>
-          <View style={styles.settingsLabelCol}>
-            <View style={styles.settingsIconLabelRow}>
-              {themeMode === 'dark' ? <MoonIcon size={18} color={theme.text} /> : <SunIcon size={18} color={theme.text} />}
-              <Text style={[styles.settingsTitleText, { color: theme.text }]}>Mode Gelap (Dark Mode)</Text>
+      {/* Side Cards Row */}
+      <View style={styles.sideCardsRow}>
+        {/* Left Card */}
+        <View style={styles.sideCard}>
+          <Text style={styles.sideCardLabel}>Supervisor</Text>
+          <Text style={styles.sideCardValue}>Bambang S.</Text>
+        </View>
+
+        {/* Right Card */}
+        <TouchableOpacity style={styles.sideCard} activeOpacity={0.7}>
+          <View style={styles.sideCardRow}>
+            <View>
+              <Text style={styles.sideCardLabel}>Department</Text>
+              <Text style={styles.sideCardValue}>Maintenance</Text>
             </View>
-            <Text style={[styles.settingsDescText, { color: theme.textSecondary }]}>Aktifkan tema gelap untuk kenyamanan mata di area pabrik redup</Text>
+            <ChevronRight size={16} color="#94a3b8" />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* Preferensi Aplikasi */}
+      <Text style={styles.settingsSectionTitle}>Preferensi Aplikasi</Text>
+      <View style={styles.settingsList}>
+        {/* Dark Mode */}
+        <View style={styles.settingsRow}>
+          <View style={styles.notifIconBox}>
+            {themeMode === 'dark' ? <Moon size={20} color="#0f172a" /> : <Sun size={20} color="#0f172a" />}
+          </View>
+          <View style={styles.settingsLabelCol}>
+            <Text style={styles.settingsTitleText}>Mode Gelap (Dark Mode)</Text>
+            <Text style={styles.settingsDescText}>Aktifkan tema gelap untuk area redup</Text>
           </View>
           <Switch
             value={themeMode === 'dark'}
             onValueChange={(val) => setThemeMode && setThemeMode(val ? 'dark' : 'light')}
-            trackColor={{ false: theme.border, true: theme.primary }}
+            trackColor={{ false: '#e2e8f0', true: '#15803d' }}
             thumbColor="#ffffff"
           />
         </View>
 
-        {/* Toggle Push Alerts */}
-        <View style={[styles.settingsRow, { borderBottomColor: theme.border }]}>
+        {/* Push Alerts */}
+        <View style={styles.settingsRow}>
+          <View style={styles.notifIconBox}>
+            <Bell size={20} color="#0f172a" />
+          </View>
           <View style={styles.settingsLabelCol}>
-            <View style={styles.settingsIconLabelRow}>
-              <BellIcon size={18} color={theme.text} />
-              <Text style={[styles.settingsTitleText, { color: theme.text }]}>Alarm & Notifikasi Push</Text>
-            </View>
-            <Text style={[styles.settingsDescText, { color: theme.textSecondary }]}>Terima anomali getaran/suhu secara instan</Text>
+            <Text style={styles.settingsTitleText}>Alarm & Notifikasi Push</Text>
+            <Text style={styles.settingsDescText}>Terima deteksi anomali secara instan</Text>
           </View>
           <Switch
             value={notifyPush}
             onValueChange={setNotifyPush}
-            trackColor={{ false: theme.border, true: theme.primary }}
+            trackColor={{ false: '#e2e8f0', true: '#15803d' }}
             thumbColor="#ffffff"
           />
         </View>
 
-        {/* Toggle Email Alerts */}
+        {/* Email Report */}
         <View style={styles.settingsRow}>
+          <View style={styles.notifIconBox}>
+            <FileText size={20} color="#0f172a" />
+          </View>
           <View style={styles.settingsLabelCol}>
-            <View style={styles.settingsIconLabelRow}>
-              <SettingsIcon size={18} color={theme.text} />
-              <Text style={[styles.settingsTitleText, { color: theme.text }]}>Laporan Shift ke Email</Text>
-            </View>
-            <Text style={[styles.settingsDescText, { color: theme.textSecondary }]}>Kirim rekapitulasi data mesin di akhir shift kerja</Text>
+            <Text style={styles.settingsTitleText}>Laporan Shift ke Email</Text>
+            <Text style={styles.settingsDescText}>Kirim rekap data di akhir shift kerja</Text>
           </View>
           <Switch
             value={notifyMails}
             onValueChange={setNotifyMails}
-            trackColor={{ false: theme.border, true: theme.primary }}
+            trackColor={{ false: '#e2e8f0', true: '#15803d' }}
             thumbColor="#ffffff"
           />
         </View>
       </View>
 
-      {/* Account Info Details */}
-      <Text style={[styles.profileSectionTitle, { color: theme.text }]}>Informasi Akun</Text>
-      
-      <View style={[styles.settingsGroupCard, { borderColor: theme.border, backgroundColor: theme.cardBg }]}>
-        <View style={[styles.accountDetailRow, { borderBottomColor: theme.border }]}>
-          <Text style={[styles.accountLabel, { color: theme.textSecondary }]}>NIK Karyawan</Text>
-          <Text style={[styles.accountVal, { color: theme.text }]}>GRFD-82019-OP</Text>
+      {/* Informasi Akun */}
+      <Text style={styles.settingsSectionTitle}>Informasi Akun</Text>
+      <View style={styles.settingsList}>
+        {/* NIK */}
+        <View style={styles.settingsRow}>
+          <View style={styles.notifIconBox}>
+            <User size={20} color="#0f172a" />
+          </View>
+          <View style={styles.settingsLabelCol}>
+            <Text style={styles.settingsTitleText}>NIK Karyawan</Text>
+          </View>
+          <Text style={styles.accountValText}>GRFD-82019-OP</Text>
         </View>
-        <View style={[styles.accountDetailRow, { borderBottomColor: theme.border }]}>
-          <Text style={[styles.accountLabel, { color: theme.textSecondary }]}>Versi Aplikasi Mobile</Text>
-          <Text style={[styles.accountVal, { color: theme.text }]}>v2.4.1 (Enterprise Build)</Text>
+
+        {/* App Version */}
+        <View style={styles.settingsRow}>
+          <View style={styles.notifIconBox}>
+            <Settings size={20} color="#0f172a" />
+          </View>
+          <View style={styles.settingsLabelCol}>
+            <Text style={styles.settingsTitleText}>Versi Aplikasi</Text>
+          </View>
+          <Text style={styles.accountValText}>v2.4.1</Text>
         </View>
-        <View style={styles.accountDetailRow}>
-          <Text style={[styles.accountLabel, { color: theme.textSecondary }]}>Terakhir Sinkronisasi</Text>
-          <Text style={[styles.accountVal, { color: theme.text }]}>Baru saja (IoT Node Gateway-01)</Text>
+
+        {/* Last Sync */}
+        <View style={styles.settingsRow}>
+          <View style={styles.notifIconBox}>
+            <Info size={20} color="#0f172a" />
+          </View>
+          <View style={styles.settingsLabelCol}>
+            <Text style={styles.settingsTitleText}>Sinkronisasi Gateway</Text>
+          </View>
+          <Text style={styles.accountValText}>Aktif</Text>
         </View>
       </View>
 
       {/* Logout button */}
       <TouchableOpacity
-        style={[styles.logoutBtn, { borderColor: theme.critical }]}
+        style={styles.logoutBtn}
         onPress={() => onNavigate('login')}
+        activeOpacity={0.8}
       >
-        <LogOutIcon size={18} color={theme.critical} />
+        <LogOut size={18} color="#dc2626" />
         <Text style={styles.logoutBtnText}>Keluar dari Sistem</Text>
       </TouchableOpacity>
     </ScrollView>

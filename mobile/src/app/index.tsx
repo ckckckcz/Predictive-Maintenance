@@ -29,6 +29,7 @@ import {
   SettingsIcon,
   CheckIcon,
 } from '@/components/ui/icons';
+import { Home, ShieldAlert, Bell, User } from 'lucide-react-native';
 
 export default function App() {
   // Theme state
@@ -145,19 +146,20 @@ export default function App() {
 
       {/* Custom Bottom Tab Navigation Bar */}
       {showBottomTabs && (
-        <View style={[styles.tabBar, { backgroundColor: theme.cardBg, borderTopColor: theme.border }]}>
+        <View style={[styles.tabBar, { backgroundColor: '#ffffff', borderTopColor: '#f1f5f9' }]}>
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => handleNavigate('dashboard')}
+            activeOpacity={0.7}
           >
-            <HomeIcon
+            <Home
               size={20}
-              color={isTabActive('dashboard') ? theme.primary : theme.textSecondary}
+              color={isTabActive('dashboard') ? '#15803d' : '#64748b'}
             />
             <Text
               style={[
                 styles.tabLabel,
-                { color: isTabActive('dashboard') ? theme.primary : theme.textSecondary },
+                { color: isTabActive('dashboard') ? '#15803d' : '#64748b' },
               ]}
             >
               Beranda
@@ -167,15 +169,16 @@ export default function App() {
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => handleNavigate('incidentReport')}
+            activeOpacity={0.7}
           >
-            <IncidentIcon
+            <ShieldAlert
               size={20}
-              color={isTabActive('incidentReport') ? theme.primary : theme.textSecondary}
+              color={isTabActive('incidentReport') ? '#15803d' : '#64748b'}
             />
             <Text
               style={[
                 styles.tabLabel,
-                { color: isTabActive('incidentReport') ? theme.primary : theme.textSecondary },
+                { color: isTabActive('incidentReport') ? '#15803d' : '#64748b' },
               ]}
             >
               Lapor
@@ -185,18 +188,19 @@ export default function App() {
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => handleNavigate('notifications')}
+            activeOpacity={0.7}
           >
             <View>
-              <BellIcon
+              <Bell
                 size={20}
-                color={isTabActive('notifications') ? theme.primary : theme.textSecondary}
+                color={isTabActive('notifications') ? '#15803d' : '#64748b'}
               />
-              <View style={[styles.tabNotificationBadge, { backgroundColor: theme.critical }]} />
+              <View style={[styles.tabNotificationBadge, { backgroundColor: '#dc2626' }]} />
             </View>
             <Text
               style={[
                 styles.tabLabel,
-                { color: isTabActive('notifications') ? theme.primary : theme.textSecondary },
+                { color: isTabActive('notifications') ? '#15803d' : '#64748b' },
               ]}
             >
               Notifikasi
@@ -206,15 +210,16 @@ export default function App() {
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => handleNavigate('profile')}
+            activeOpacity={0.7}
           >
-            <UserIcon
+            <User
               size={20}
-              color={isTabActive('profile') ? theme.primary : theme.textSecondary}
+              color={isTabActive('profile') ? '#15803d' : '#64748b'}
             />
             <Text
               style={[
                 styles.tabLabel,
-                { color: isTabActive('profile') ? theme.primary : theme.textSecondary },
+                { color: isTabActive('profile') ? '#15803d' : '#64748b' },
               ]}
             >
               Profil
