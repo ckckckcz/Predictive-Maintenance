@@ -132,7 +132,7 @@ export function MachineTelemetryChart({
                     </Tabs>
                 </div>
             </CardHeader>
-            <CardContent className="flex-1 min-h-[380px] p-6 pt-2">
+            <CardContent className="flex-1 min-h-[480px] p-6 pt-2">
                 {chartData.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400">
                         <Activity className="h-8 w-8 mb-2 animate-pulse" />
@@ -143,7 +143,7 @@ export function MachineTelemetryChart({
                         <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                             <XAxis dataKey="time" fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontWeight: 500 }} dy={10} />
-                            <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontWeight: 500 }} dx={-10} />
+                            <YAxis domain={['auto', 'auto']} fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontWeight: 500 }} dx={-10} />
                             <Tooltip
                                 contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.05)', padding: '12px', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                                 labelStyle={{ fontWeight: 'bold', color: '#1e293b' }}
@@ -175,7 +175,7 @@ export function MachineTelemetryChart({
                                                 fill: "#ef4444",
                                                 fontSize: 10,
                                                 fontWeight: 'bold',
-                                                position: 'insideTopLeft'
+                                                position: 'insideTopRight'
                                             }}
                                         />
                                     )}

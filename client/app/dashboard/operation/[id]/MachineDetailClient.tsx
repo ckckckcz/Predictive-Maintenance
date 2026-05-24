@@ -128,7 +128,7 @@ export default function MachineDetailClient() {
                             disabled={simulating}
                             className="bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-2 rounded-xl transition-all duration-200 shadow-sm md:self-center cursor-pointer"
                         >
-                            <ShieldAlert className={cn("h-4 w-4", simulating && "animate-spin")} />
+                            <ShieldAlert className={cn("h-4 w-4")} />
                             {simulating ? "Simulating Anomaly..." : "Simulasikan Anomali"}
                         </Button>
                     )}
