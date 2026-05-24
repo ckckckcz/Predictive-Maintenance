@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index.go"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/v1/cron/simulate",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/v1/cron/recalculate-risk",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

@@ -1,105 +1,48 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
-import {
-    Plus,
-    Edit2,
-    Search,
-    MapPin,
-    Eye,
-    Power,
-    ShieldAlert,
-    RefreshCw,
-    Info,
-    Settings2,
-    Trash2,
-    Wrench,
-} from "lucide-react"
-
+import { Plus, Search, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { ResponsiveModal } from "@/components/dashboard/responsive-modal"
-import { Card, CardContent } from "@/components/ui/card"
-import { api } from "@/lib/api"
 import toast from "react-hot-toast"
 
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
-
-interface Mechanic {
-    id: string
-    name: string
-    email: string
-    phone: string
-    specialization: string
-}
-
-interface Machine {
-    id: string
-    name: string
-    code: string
-    type: string
-    location: string | null
-    status: "ACTIVE" | "INACTIVE" | "MAINTENANCE"
-    mechanic_id: string | null
-    mechanic?: Mechanic | null
-    created_at: string
-}
+import { useUserRole } from "@/hooks/useUserRole"
+import { machineService } from "@/services/machineService"
+import { areaService } from "@/services/areaService"
+import { machineTypeService } from "@/services/machineTypeService"
+import { mechanicService } from "@/services/mechanicService"
+import { Machine, Mechanic } from "@/types/machine"
+import { MachineCard } from "@/components/dashboard/operation/MachineCard"
+import { MachineModal } from "@/components/dashboard/operation/MachineModal"
 
 export default function OperationsPage() {
     const [machines, setMachines] = useState<Machine[]>([])
     const [searchQuery, setSearchQuery] = useState("")
     const [isFormOpen, setIsFormOpen] = useState(false)
     const [loading, setLoading] = useState(true)
-    const [userRole, setUserRole] = useState<string | null>(null)
     const [refreshing, setRefreshing] = useState(false)
+    const { isSupervisor } = useUserRole()
 
     // Master data states
     const [areas, setAreas] = useState<{ id: string; name: string; code: string }[]>([])
     const [machineTypes, setMachineTypes] = useState<{ id: string; name: string; code: string }[]>([])
     const [mechanics, setMechanics] = useState<Mechanic[]>([])
 
-    // Form states for creating a new machine
-    const [newMachineName, setNewMachineName] = useState("")
-    const [newMachineCode, setNewMachineCode] = useState("")
-    const [newMachineType, setNewMachineType] = useState("")
-    const [newMachineLocation, setNewMachineLocation] = useState("")
-    const [newMachineMechanicId, setNewMachineMechanicId] = useState("none")
+    // Form states
+    const [formName, setFormName] = useState("")
+    const [formCode, setFormCode] = useState("")
+    const [formType, setFormType] = useState("")
+    const [formLocation, setFormLocation] = useState("")
+    const [formMechanicId, setFormMechanicId] = useState("none")
     const [submitLoading, setSubmitLoading] = useState(false)
 
-    // Form states for editing an existing machine
+    // Edit states
     const [editingMachine, setEditingMachine] = useState<Machine | null>(null)
     const [isEditFormOpen, setIsEditFormOpen] = useState(false)
-    const [editMachineName, setEditMachineName] = useState("")
-    const [editMachineCode, setEditMachineCode] = useState("")
-    const [editMachineType, setEditMachineType] = useState("")
-    const [editMachineLocation, setEditMachineLocation] = useState("")
-    const [editMachineMechanicId, setEditMachineMechanicId] = useState("none")
-
-    const fetchUserAndRole = () => {
-        if (typeof window !== "undefined") {
-            const userStr = localStorage.getItem("user")
-            if (userStr) {
-                try {
-                    const user = JSON.parse(userStr)
-                    setUserRole(user.role)
-                } catch (e) {
-                    console.error("Gagal parse data user:", e)
-                }
-            }
-        }
-    }
 
     const loadMachines = async () => {
         try {
-            const data = await api.get<any, Machine[]>("/api/v1/machines")
+            const data = await machineService.getAll()
             setMachines(data || [])
         } catch (err: any) {
             console.error("Gagal memuat mesin:", err)
@@ -113,9 +56,9 @@ export default function OperationsPage() {
     const loadMasterData = async () => {
         try {
             const [areasData, typesData, mechanicsData] = await Promise.all([
-                api.get<any, any[]>("/api/v1/areas"),
-                api.get<any, any[]>("/api/v1/machine-types"),
-                api.get<any, any[]>("/api/v1/mechanics")
+                areaService.getAll(),
+                machineTypeService.getAll(),
+                mechanicService.getAll()
             ])
             setAreas(areasData || [])
             setMachineTypes(typesData || [])
@@ -126,7 +69,6 @@ export default function OperationsPage() {
     }
 
     useEffect(() => {
-        fetchUserAndRole()
         loadMachines()
         loadMasterData()
 
@@ -135,10 +77,10 @@ export default function OperationsPage() {
     }, [])
 
     useEffect(() => {
-        if (machineTypes.length > 0 && !newMachineType) {
-            setNewMachineType(machineTypes[0].code)
+        if (machineTypes.length > 0 && !formType) {
+            setFormType(machineTypes[0].code)
         }
-    }, [machineTypes, newMachineType])
+    }, [machineTypes, formType])
 
     const handleRefresh = () => {
         setRefreshing(true)
@@ -146,9 +88,8 @@ export default function OperationsPage() {
         loadMasterData()
     }
 
-    // Toggle machine ON/OFF (ACTIVE/INACTIVE)
     const handleToggleStatus = async (machineId: string, currentStatus: string) => {
-        if (userRole !== "SUPERVISOR") {
+        if (!isSupervisor) {
             toast.error("Akses Ditolak: Anda membutuhkan peran SUPERVISOR untuk mengontrol mesin.")
             return
         }
@@ -157,9 +98,7 @@ export default function OperationsPage() {
         const toastId = toast.loading(`Mengubah status mesin menjadi ${targetStatus}...`)
 
         try {
-            await api.patch(`/api/v1/machines/${machineId}/status`, {
-                status: targetStatus,
-            })
+            await machineService.toggleStatus(machineId, targetStatus)
             toast.success(`Mesin berhasil ${targetStatus === "ACTIVE" ? "diaktifkan" : "dinonaktifkan"}`, { id: toastId })
             loadMachines()
         } catch (err: any) {
@@ -167,9 +106,8 @@ export default function OperationsPage() {
         }
     }
 
-    // Create a new machine
     const handleCreateMachine = async () => {
-        if (!newMachineName || !newMachineCode || !newMachineType) {
+        if (!formName || !formCode || !formType) {
             toast.error("Silakan isi semua bidang wajib (Nama, Kode, Tipe)")
             return
         }
@@ -178,22 +116,21 @@ export default function OperationsPage() {
         const toastId = toast.loading("Membuat mesin baru...")
 
         try {
-            await api.post("/api/v1/machines", {
-                name: newMachineName,
-                code: newMachineCode,
-                type: newMachineType,
-                location: newMachineLocation || null,
-                mechanic_id: (newMachineMechanicId && newMachineMechanicId !== "none") ? newMachineMechanicId : null,
+            await machineService.create({
+                name: formName,
+                code: formCode,
+                type: formType,
+                location: formLocation || null,
+                mechanic_id: (formMechanicId && formMechanicId !== "none") ? formMechanicId : null,
             })
             toast.success("Mesin baru berhasil ditambahkan!", { id: toastId })
             setIsFormOpen(false)
 
-            // Clear form
-            setNewMachineName("")
-            setNewMachineCode("")
-            setNewMachineType(machineTypes.length > 0 ? machineTypes[0].code : "")
-            setNewMachineLocation("")
-            setNewMachineMechanicId("none")
+            setFormName("")
+            setFormCode("")
+            setFormType(machineTypes.length > 0 ? machineTypes[0].code : "")
+            setFormLocation("")
+            setFormMechanicId("none")
 
             loadMachines()
         } catch (err: any) {
@@ -205,17 +142,17 @@ export default function OperationsPage() {
 
     const handleOpenEditModal = (m: Machine) => {
         setEditingMachine(m)
-        setEditMachineName(m.name)
-        setEditMachineCode(m.code)
-        setEditMachineType(m.type)
-        setEditMachineLocation(m.location || "")
-        setEditMachineMechanicId(m.mechanic_id || "none")
+        setFormName(m.name)
+        setFormCode(m.code)
+        setFormType(m.type)
+        setFormLocation(m.location || "")
+        setFormMechanicId(m.mechanic_id || "none")
         setIsEditFormOpen(true)
     }
 
     const handleUpdateMachine = async () => {
         if (!editingMachine) return
-        if (!editMachineName || !editMachineCode || !editMachineType) {
+        if (!formName || !formCode || !formType) {
             toast.error("Silakan isi semua bidang wajib (Nama, Kode, Tipe)")
             return
         }
@@ -224,12 +161,12 @@ export default function OperationsPage() {
         const toastId = toast.loading("Memperbarui data mesin...")
 
         try {
-            await api.put(`/api/v1/machines/${editingMachine.id}`, {
-                name: editMachineName,
-                code: editMachineCode,
-                type: editMachineType,
-                location: editMachineLocation || null,
-                mechanic_id: (editMachineMechanicId && editMachineMechanicId !== "none") ? editMachineMechanicId : null,
+            await machineService.update(editingMachine.id, {
+                name: formName,
+                code: formCode,
+                type: formType,
+                location: formLocation || null,
+                mechanic_id: (formMechanicId && formMechanicId !== "none") ? formMechanicId : null,
             })
             toast.success("Mesin berhasil diperbarui!", { id: toastId })
             setIsEditFormOpen(false)
@@ -243,7 +180,7 @@ export default function OperationsPage() {
     }
 
     const handleDeleteMachine = async (machineId: string) => {
-        if (userRole !== "SUPERVISOR") {
+        if (!isSupervisor) {
             toast.error("Akses Ditolak: Anda membutuhkan peran SUPERVISOR untuk menghapus mesin.")
             return
         }
@@ -255,7 +192,7 @@ export default function OperationsPage() {
         const toastId = toast.loading("Menghapus mesin...")
 
         try {
-            await api.delete(`/api/v1/machines/${machineId}`)
+            await machineService.delete(machineId)
             toast.success("Mesin berhasil dihapus!", { id: toastId })
             loadMachines()
         } catch (err: any) {
@@ -263,7 +200,6 @@ export default function OperationsPage() {
         }
     }
 
-    // Filter machines by query
     const filteredMachines = machines.filter(
         (m) =>
             m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -271,11 +207,8 @@ export default function OperationsPage() {
             (m.location && m.location.toLowerCase().includes(searchQuery.toLowerCase()))
     )
 
-    const isSupervisor = userRole === "SUPERVISOR"
-
     return (
         <div className="space-y-6">
-            {/* Breadcrumb & Header */}
             <div className="space-y-4">
                 <div className="text-sm text-gray-500 flex items-center gap-2">
                     Home <span className="text-gray-300">/</span> <span className="text-gray-900 font-medium">Operation</span>
@@ -283,406 +216,96 @@ export default function OperationsPage() {
 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-1">
-                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-                            Manajemen Operasional Mesin
-                        </h1>
-                        <p className="text-gray-500 text-sm">
-                            Kendalikan status operasional mesin pabrik dan daftarkan mesin baru.
-                        </p>
+                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Manajemen Operasional Mesin</h1>
+                        <p className="text-gray-500 text-sm">Kendalikan status operasional mesin pabrik dan daftarkan mesin baru.</p>
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={handleRefresh}
-                            disabled={refreshing}
-                            className="h-11 border-gray-200 hover:bg-gray-50 bg-white"
-                        >
-                            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
-                            Refresh
+                        <Button variant="outline" onClick={handleRefresh} disabled={refreshing} className="h-11 border-gray-200 hover:bg-gray-50 bg-white">
+                            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} /> Refresh
                         </Button>
 
                         {isSupervisor && (
-                            <Button
-                                onClick={() => setIsFormOpen(true)}
-                                className="gap-2 text-white h-11 bg-emerald-600 hover:bg-emerald-700 font-semibold cursor-pointer shadow-md shadow-emerald-100"
-                            >
-                                <Plus className="h-4 w-4" />
-                                Tambah Mesin
+                            <Button onClick={() => { setFormName(""); setFormCode(""); setFormLocation(""); setFormMechanicId("none"); setIsFormOpen(true) }} className="gap-2 text-white h-11 bg-emerald-600 hover:bg-emerald-700 font-semibold cursor-pointer shadow-md shadow-emerald-100">
+                                <Plus className="h-4 w-4" /> Tambah Mesin
                             </Button>
                         )}
                     </div>
                 </div>
 
-                {/* Search Bar */}
                 <div className="relative w-full">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <Input
-                        placeholder="Cari mesin berdasarkan nama, kode, atau lokasi..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-11 h-12 bg-white border-gray-200 focus-visible:ring-emerald-500 focus-visible:ring-1"
-                    />
+                    <Input placeholder="Cari mesin berdasarkan nama, kode, atau lokasi..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-11 h-12 bg-white border-gray-200 focus-visible:ring-emerald-500 focus-visible:ring-1" />
                 </div>
             </div>
 
-            {/* Modal for Creating Machine */}
-            <ResponsiveModal
+            <MachineModal
                 open={isFormOpen}
                 onOpenChange={setIsFormOpen}
-                showCloseButton={false}
-                forceDrawerOnMobile={true}
                 title="Tambah Mesin Pabrik Baru"
-                footer={
-                    <div className="flex gap-3 w-full">
-                        <Button
-                            onClick={handleCreateMachine}
-                            disabled={submitLoading}
-                            className="flex-1 h-11 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 cursor-pointer"
-                        >
-                            {submitLoading ? "Menyimpan..." : "Simpan Mesin"}
-                        </Button>
+                name={formName}
+                setName={setFormName}
+                code={formCode}
+                setCode={setFormCode}
+                type={formType}
+                setType={setFormType}
+                location={formLocation}
+                setLocation={setFormLocation}
+                mechanicId={formMechanicId}
+                setMechanicId={setFormMechanicId}
+                submitLoading={submitLoading}
+                onSubmit={handleCreateMachine}
+                areas={areas}
+                machineTypes={machineTypes}
+                mechanics={mechanics}
+            />
 
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsFormOpen(false)}
-                            className="flex-1 h-11 border-gray-200 hover:bg-gray-100 cursor-pointer"
-                        >
-                            Batal
-                        </Button>
-                    </div>
-                }
-            >
-                <div className="space-y-4 py-2">
-                    <div className="space-y-1.5">
-                        <Label htmlFor="mName" className="text-sm font-semibold text-gray-700">
-                            Nama Mesin
-                        </Label>
-                        <Input
-                            id="mName"
-                            placeholder="Contoh: Boiler Unit Utama"
-                            value={newMachineName}
-                            onChange={(e) => setNewMachineName(e.target.value)}
-                            className="h-11 bg-white border-gray-200"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="mCode" className="text-sm font-semibold text-gray-700">
-                                Kode Mesin (Unik)
-                            </Label>
-                            <Input
-                                id="mCode"
-                                placeholder="Contoh: BLR-001"
-                                value={newMachineCode}
-                                onChange={(e) => setNewMachineCode(e.target.value)}
-                                className="h-11 bg-white border-gray-200"
-                            />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label className="text-sm font-semibold text-gray-700">
-                                Tipe Mesin
-                            </Label>
-                            <Select value={newMachineType} onValueChange={setNewMachineType}>
-                                <SelectTrigger className="h-11 w-full bg-white border-gray-200">
-                                    <SelectValue placeholder="Pilih Tipe" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {machineTypes.map((type) => (
-                                        <SelectItem key={type.id} value={type.code}>
-                                            {type.name} ({type.code})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <Label className="text-sm font-semibold text-gray-700">
-                            Lokasi / Area Pabrik
-                        </Label>
-                        <Select value={newMachineLocation} onValueChange={setNewMachineLocation}>
-                            <SelectTrigger className="h-11 w-full bg-white border-gray-200">
-                                <SelectValue placeholder="Pilih Lokasi / Area" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {areas.map((area) => (
-                                    <SelectItem key={area.id} value={area.name}>
-                                        {area.name} ({area.code})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <Label className="text-sm font-semibold text-gray-700">
-                            Penanggung Jawab (Mekanik)
-                        </Label>
-                        <Select value={newMachineMechanicId} onValueChange={setNewMachineMechanicId}>
-                            <SelectTrigger className="h-11 w-full bg-white border-gray-200">
-                                <SelectValue placeholder="Pilih Penanggung Jawab (Opsional)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">Belum Ditentukan</SelectItem>
-                                {mechanics.map((mech) => (
-                                    <SelectItem key={mech.id} value={mech.id}>
-                                        {mech.name} ({mech.specialization})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-            </ResponsiveModal>
-
-            {/* Modal for Editing Machine */}
-            <ResponsiveModal
+            <MachineModal
                 open={isEditFormOpen}
-                onOpenChange={setIsEditFormOpen}
-                showCloseButton={false}
-                forceDrawerOnMobile={true}
+                onOpenChange={(open) => { setIsEditFormOpen(open); if (!open) setEditingMachine(null) }}
                 title="Edit Data Mesin Pabrik"
-                footer={
-                    <div className="flex gap-3 w-full">
-                        <Button
-                            onClick={handleUpdateMachine}
-                            disabled={submitLoading}
-                            className="flex-1 h-11 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 cursor-pointer"
-                        >
-                            {submitLoading ? "Menyimpan..." : "Simpan Perubahan"}
-                        </Button>
+                name={formName}
+                setName={setFormName}
+                code={formCode}
+                setCode={setFormCode}
+                type={formType}
+                setType={setFormType}
+                location={formLocation}
+                setLocation={setFormLocation}
+                mechanicId={formMechanicId}
+                setMechanicId={setFormMechanicId}
+                submitLoading={submitLoading}
+                onSubmit={handleUpdateMachine}
+                areas={areas}
+                machineTypes={machineTypes}
+                mechanics={mechanics}
+            />
 
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setIsEditFormOpen(false)
-                                setEditingMachine(null)
-                            }}
-                            className="flex-1 h-11 border-gray-200 hover:bg-gray-100 cursor-pointer"
-                        >
-                            Batal
-                        </Button>
-                    </div>
-                }
-            >
-                <div className="space-y-4 py-2">
-                    <div className="space-y-1.5">
-                        <Label htmlFor="editMName" className="text-sm font-semibold text-gray-700">
-                            Nama Mesin
-                        </Label>
-                        <Input
-                            id="editMName"
-                            placeholder="Contoh: Boiler Unit Utama"
-                            value={editMachineName}
-                            onChange={(e) => setEditMachineName(e.target.value)}
-                            className="h-11 bg-white border-gray-200"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="editMCode" className="text-sm font-semibold text-gray-700">
-                                Kode Mesin (Unik)
-                            </Label>
-                            <Input
-                                id="editMCode"
-                                placeholder="Contoh: BLR-001"
-                                value={editMachineCode}
-                                onChange={(e) => setEditMachineCode(e.target.value)}
-                                className="h-11 bg-white border-gray-200"
-                            />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label className="text-sm font-semibold text-gray-700">
-                                Tipe Mesin
-                            </Label>
-                            <Select value={editMachineType} onValueChange={setEditMachineType}>
-                                <SelectTrigger className="h-11 w-full bg-white border-gray-200">
-                                    <SelectValue placeholder="Pilih Tipe" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {machineTypes.map((type) => (
-                                        <SelectItem key={type.id} value={type.code}>
-                                            {type.name} ({type.code})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <Label className="text-sm font-semibold text-gray-700">
-                            Lokasi / Area Pabrik
-                        </Label>
-                        <Select value={editMachineLocation} onValueChange={setEditMachineLocation}>
-                            <SelectTrigger className="h-11 w-full bg-white border-gray-200">
-                                <SelectValue placeholder="Pilih Lokasi / Area" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {areas.map((area) => (
-                                    <SelectItem key={area.id} value={area.name}>
-                                        {area.name} ({area.code})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <Label className="text-sm font-semibold text-gray-700">
-                            Penanggung Jawab (Mekanik)
-                        </Label>
-                        <Select value={editMachineMechanicId} onValueChange={setEditMachineMechanicId}>
-                            <SelectTrigger className="h-11 w-full bg-white border-gray-200">
-                                <SelectValue placeholder="Pilih Penanggung Jawab (Opsional)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">Belum Ditentukan</SelectItem>
-                                {mechanics.map((mech) => (
-                                    <SelectItem key={mech.id} value={mech.id}>
-                                        {mech.name} ({mech.specialization})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-            </ResponsiveModal>
-
-            {/* Grid of Cards */}
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100">
                     <RefreshCw className="h-8 w-8 text-emerald-500 animate-spin mb-4" />
                     <p className="text-gray-500 font-medium">Memuat konfigurasi operasional...</p>
                 </div>
             ) : filteredMachines.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-                    <div className="h-12 w-12 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                        <Search className="h-6 w-6 text-gray-300" />
-                    </div>
-                    <p className="text-gray-500 font-medium">Tidak ada mesin yang ditemukan.</p>
-                </div>
+				<div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+					<div className="h-12 w-12 bg-gray-50 rounded-full flex items-center justify-center mb-4"><Search className="h-6 w-6 text-gray-300" /></div>
+					<p className="text-gray-500 font-medium">Tidak ada mesin yang ditemukan.</p>
+				</div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredMachines.map((m) => {
-                        const isActive = m.status === "ACTIVE"
                         const idx = machines.findIndex(x => x.id === m.id)
                         const machineNum = idx !== -1 ? String(idx + 1) : m.id
                         return (
-                            <Card key={m.id} className="p-5 space-y-4 border-gray-200/80 shadow-md rounded-2xl bg-white/70 backdrop-blur-md transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
-                                {/* Card Header */}
-                                <div className="flex justify-between items-start">
-                                    <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="text-md font-bold text-gray-900 truncate max-w-[180px]">{m.name}</h3>
-                                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${m.status === "ACTIVE"
-                                                    ? "bg-emerald-100 text-emerald-700"
-                                                    : m.status === "MAINTENANCE"
-                                                        ? "bg-amber-100 text-amber-700"
-                                                        : "bg-gray-100 text-gray-500"
-                                                }`}>
-                                                {m.status}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-[11px] text-gray-500">
-                                            <span className="font-bold text-gray-400 tracking-wide">{m.code}</span>
-                                            <span className="h-1 w-1 bg-gray-300 rounded-full" />
-                                            <div className="flex items-center gap-0.5 font-medium">
-                                                <MapPin className="h-3 w-3 text-gray-400" />
-                                                {m.location || "Lokasi Belum Diset"}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {isSupervisor && (
-                                        <div className="flex items-center gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => handleOpenEditModal(m)}
-                                                className="h-8 w-8 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg cursor-pointer transition-colors"
-                                            >
-                                                <Edit2 className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => handleDeleteMachine(m.id)}
-                                                className="h-8 w-8 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Machine Type Display & Mechanic PIC */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="bg-gray-50/80 rounded-xl p-3 space-y-1 border border-gray-100/50">
-                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                            <Settings2 className="h-3 w-3" />
-                                            Tipe Peralatan
-                                        </div>
-                                        <div className="text-xs text-gray-700 font-bold truncate">
-                                            {m.type}
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-gray-50/80 rounded-xl p-3 space-y-1 border border-gray-100/50">
-                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                            <Wrench className="h-3 w-3 text-emerald-600" />
-                                            PIC / Mekanik
-                                        </div>
-                                        <div className="text-xs text-gray-700 font-bold truncate" title={m.mechanic ? `${m.mechanic.name} (${m.mechanic.specialization})` : "Belum Ditentukan"}>
-                                            {m.mechanic ? m.mechanic.name : "Belum Ditentukan"}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Active Toggle Section (Supervisor Only Role-protection display) */}
-                                <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 border border-gray-100">
-                                    <div className="flex items-center gap-1.5">
-                                        {isSupervisor ? (
-                                            <span className="text-xs font-semibold text-gray-600">Kontrol Daya</span>
-                                        ) : (
-                                            <div className="flex items-center gap-1 text-xs font-semibold text-gray-400">
-                                                <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />
-                                                Supervisor Only
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <Button
-                                        size="sm"
-                                        variant={isActive ? "default" : "outline"}
-                                        onClick={() => handleToggleStatus(m.id, m.status)}
-                                        disabled={!isSupervisor}
-                                        className={`h-8 gap-1.5 text-xs font-bold px-3 rounded-lg cursor-pointer transition-all duration-300 ${isActive
-                                                ? "bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-100"
-                                                : "bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-200"
-                                            }`}
-                                    >
-                                        <Power className="h-3 w-3" />
-                                        {isActive ? "Matikan" : "Aktifkan"}
-                                    </Button>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex items-center gap-2 pt-1">
-                                    <Link href={`/dashboard/operation/${machineNum}`} className="flex-1">
-                                        <Button className="w-full h-10 bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5 rounded-xl font-bold shadow-md shadow-emerald-100 cursor-pointer">
-                                            <Eye className="h-4 w-4" />
-                                            Buka Mesin
-                                        </Button>
-                                    </Link>
-                                </div>
-                            </Card>
+                            <MachineCard
+                                key={m.id}
+                                m={m}
+                                machineNum={machineNum}
+                                isSupervisor={isSupervisor}
+                                onOpenEdit={handleOpenEditModal}
+                                onDelete={handleDeleteMachine}
+                                onToggleStatus={handleToggleStatus}
+                            />
                         )
                     })}
                 </div>

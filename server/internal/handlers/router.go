@@ -81,6 +81,32 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		sensorH.IngestReading,
 	)
 
+	// ── Cron triggers (Vercel Serverless compatibility) ──────────────────────
+	cron := v1.Group("/cron")
+	cron.Use(middleware.CronAuth(deps.Cfg.Simulator.APIKey))
+	{
+		cron.GET("/simulate", func(c *gin.Context) {
+			deps.SimulatorSvc.RunSimulationStep(c.Request.Context())
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "Simulation step completed successfully",
+			})
+		})
+		cron.GET("/recalculate-risk", func(c *gin.Context) {
+			if err := deps.SensorSvc.RecalculateOpenIncidentsRiskScores(c.Request.Context()); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false,
+					"error":   err.Error(),
+				})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "Risk scores recalculated successfully",
+			})
+		})
+	}
+
 	auth := v1.Group("")
 	auth.Use(middleware.JWTAuth(deps.Cfg.JWT.Secret))
 	{

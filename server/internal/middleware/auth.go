@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -83,4 +84,33 @@ func GetUserRole(c *gin.Context) string {
 	raw, _ := c.Get(CtxUserRole)
 	role, _ := raw.(string)
 	return role
+}
+
+// CronAuth validates either the simulator API key header or the Vercel cron Bearer token.
+func CronAuth(apiKey string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 1. Check X-API-Key header (for manual or alternative cron calls)
+		key := c.GetHeader("X-API-Key")
+		if key != "" && key == apiKey {
+			c.Next()
+			return
+		}
+
+		// 2. Check Authorization header (for automatic Vercel Cron authentication)
+		authHeader := c.GetHeader("Authorization")
+		cronSecret := os.Getenv("CRON_SECRET")
+		if cronSecret != "" && authHeader == "Bearer "+cronSecret {
+			c.Next()
+			return
+		}
+
+		// If neither is valid, reject the request
+		c.AbortWithStatusJSON(401, gin.H{
+			"success": false,
+			"error": gin.H{
+				"code":    "UNAUTHORIZED_CRON",
+				"message": "unauthorized access: invalid or missing cron secret/API key",
+			},
+		})
+	}
 }

@@ -1,0 +1,15 @@
+[Unit]
+Description=Greenfields Predictive Maintenance Go Backend - BLUE
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/greenfields/server
+ExecStart=/var/www/greenfields/server/server-bin
+Restart=always
+RestartSec=5
+EnvironmentFile=/var/www/greenfields/server/.env-blue
+
+[Install]
+WantedBy=multi-user.target

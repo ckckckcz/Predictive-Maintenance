@@ -47,6 +47,11 @@ func (s *SimulatorService) Start(ctx context.Context, interval time.Duration) {
 	}()
 }
 
+// RunSimulationStep generates synthetic telemetry readings for active virtual machines once.
+func (s *SimulatorService) RunSimulationStep(ctx context.Context) {
+	s.runSimulationStep(ctx)
+}
+
 func (s *SimulatorService) runSimulationStep(ctx context.Context) {
 	machines, err := s.machineRepo.List(ctx)
 	if err != nil {
