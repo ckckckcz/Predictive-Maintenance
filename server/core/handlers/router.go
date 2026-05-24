@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -55,6 +56,9 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	uploadH   := NewUploadHandler(uploadSvc)
 	masterH   := NewMasterDataHandler(deps.MasterDataSvc)
 	mechanicH := NewMechanicHandler(deps.MechanicSvc)
+
+	// ── Root Dashboard — Status of all integrations ──────────────────────────
+	r.GET("/", rootDashboard(deps))
 
 	// ── Serve local uploads statically ───────────────────────────────────────
 	r.Static("/uploads", "./uploads")
@@ -297,4 +301,401 @@ func apiInfo(deps Dependencies) gin.HandlerFunc {
 			"data":    resp,
 		})
 	}
+}
+
+func rootDashboard(deps Dependencies) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 1. Check Database connection
+		start := time.Now()
+		dbStatus := "connected"
+		dbLatency := ""
+		dbError := ""
+		if err := deps.Pool.Ping(c.Request.Context()); err != nil {
+			dbStatus = "disconnected"
+			dbError = err.Error()
+		} else {
+			dbLatency = time.Since(start).String()
+		}
+
+		// 2. Check OpenRouter AI
+		aiStatus := "configured"
+		aiDetail := deps.Cfg.OpenRouter.Model
+		if deps.Cfg.OpenRouter.APIKey == "" {
+			aiStatus = "missing"
+			aiDetail = "No API key configured"
+		}
+
+		// 3. Check Supabase Storage
+		storageStatus := "configured"
+		storageDetail := deps.Cfg.Supabase.Bucket
+		if deps.Cfg.Supabase.URL == "" || deps.Cfg.Supabase.Key == "" {
+			storageStatus = "fallback_local"
+			storageDetail = "Using local uploads folder (ephemeral on serverless)"
+		}
+
+		// 4. Check JWT Config
+		jwtStatus := "configured"
+		jwtDetail := "Secret is loaded"
+		if deps.Cfg.JWT.Secret == "" {
+			jwtStatus = "missing"
+			jwtDetail = "No JWT secret configured (CRITICAL)"
+		} else if len(deps.Cfg.JWT.Secret) > 10 {
+			jwtDetail = fmt.Sprintf("Active (%s...%s)", deps.Cfg.JWT.Secret[:5], deps.Cfg.JWT.Secret[len(deps.Cfg.JWT.Secret)-5:])
+		}
+
+		// 5. Check VAPID Web Push
+		vapidStatus := "configured"
+		vapidDetail := deps.Cfg.VAPID.Email
+		if deps.Cfg.VAPID.PublicKey == "" || deps.Cfg.VAPID.PrivateKey == "" {
+			vapidStatus = "not_configured"
+			vapidDetail = "Web push notifications disabled"
+		}
+
+		// 6. Check Expo Push
+		expoStatus := "configured"
+		expoDetail := deps.Cfg.Expo.PushURL
+		if deps.Cfg.Expo.PushURL == "" {
+			expoStatus = "not_configured"
+			expoDetail = "Expo push notifications disabled"
+		}
+
+		// If client requests JSON or sets ?json=true, return JSON response
+		if c.Query("json") == "true" || c.GetHeader("Accept") == "application/json" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"data": gin.H{
+					"environment": deps.Cfg.App.Env,
+					"timestamp":   time.Now().Format(time.RFC3339),
+					"services": gin.H{
+						"database": gin.H{
+							"status":  dbStatus,
+							"latency": dbLatency,
+							"error":   dbError,
+						},
+						"openrouter_ai": gin.H{
+							"status": aiStatus,
+							"model":  aiDetail,
+						},
+						"supabase_storage": gin.H{
+							"status": storageStatus,
+							"bucket": storageDetail,
+						},
+						"jwt": gin.H{
+							"status": jwtStatus,
+							"detail": jwtDetail,
+						},
+						"vapid_push": gin.H{
+							"status": vapidStatus,
+							"email":  vapidDetail,
+						},
+						"expo_push": gin.H{
+							"status": expoStatus,
+							"url":    expoDetail,
+						},
+					},
+				},
+			})
+			return
+		}
+
+		// Otherwise, render a beautiful HTML Dashboard page
+		html := getDashboardHTML(
+			deps.Cfg.App.Env,
+			dbStatus, dbLatency, dbError,
+			aiStatus, aiDetail,
+			storageStatus, storageDetail,
+			jwtStatus, jwtDetail,
+			vapidStatus, vapidDetail,
+			expoStatus, expoDetail,
+		)
+
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+	}
+}
+
+func getDashboardHTML(env, dbStatus, dbLatency, dbError, aiStatus, aiDetail, storageStatus, storageDetail, jwtStatus, jwtDetail, vapidStatus, vapidDetail, expoStatus, expoDetail string) string {
+	// Status indicators mapping
+	getBadge := func(status string) string {
+		switch status {
+		case "configured", "connected":
+			return `<span class="status-indicator success">
+				<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>
+				Connected
+			</span>`
+		case "fallback_local", "not_configured":
+			return `<span class="status-indicator warning">
+				<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>
+				Not Active / Local
+			</span>`
+		default:
+			return `<span class="status-indicator error">
+				<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>
+				Disconnected / Missing
+			</span>`
+		}
+	}
+
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predictive Maintenance API Status</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(22, 28, 45, 0.4);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --color-success: #10b981;
+            --color-warning: #f59e0b;
+            --color-error: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                radial-gradient(circle at 10%% 20%%, rgba(16, 185, 129, 0.05) 0%%, transparent 45%%),
+                radial-gradient(circle at 90%% 80%%, rgba(99, 102, 241, 0.05) 0%%, transparent 45%%);
+            padding: 2rem 1rem;
+        }
+        .container {
+            width: 100%%;
+            max-width: 680px;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 80px rgba(16, 185, 129, 0.02);
+            animation: fadeIn 0.6s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 1.25rem;
+            margin-bottom: 2.25rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.5rem;
+        }
+        .logo-box {
+            background: linear-gradient(135deg, #10b981 0%%, #6366f1 100%%);
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+            box-shadow: 0 8px 16px rgba(16, 185, 129, 0.2);
+        }
+        .title-area h1 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.2rem;
+            background: linear-gradient(135deg, #ffffff 0%%, #c7d2fe 100%%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .title-area p { color: var(--text-secondary); font-size: 0.85rem; }
+        .env-badge {
+            margin-left: auto;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            padding: 0.35rem 0.85rem;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #a5b4fc;
+            text-transform: uppercase;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-bottom: 2.25rem;
+        }
+        @media(min-width: 520px) {
+            .grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .status-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 130px;
+            transition: all 0.2s ease;
+        }
+        .status-card:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.12);
+            transform: translateY(-2px);
+        }
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .card-title { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+        .card-val { font-size: 0.95rem; font-weight: 600; word-break: break-all; margin-bottom: 0.5rem; }
+        .card-sub { font-size: 0.75rem; color: #6b7280; font-family: monospace; }
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.25rem 0.65rem;
+            border-radius: 8px;
+        }
+        .status-indicator.success { background: rgba(16, 185, 129, 0.08); color: var(--color-success); }
+        .status-indicator.warning { background: rgba(245, 158, 11, 0.08); color: var(--color-warning); }
+        .status-indicator.error { background: rgba(239, 68, 68, 0.08); color: var(--color-error); }
+        .footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            padding-top: 1.5rem;
+        }
+        .footer a { color: #6366f1; text-decoration: none; font-weight: 600; }
+        .footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo-box">⚙️</div>
+            <div class="title-area">
+                <h1>Predictive Maintenance API</h1>
+                <p>System Integration Dashboard</p>
+            </div>
+            <div class="env-badge">%s</div>
+        </div>
+
+        <div class="grid">
+            <!-- Database -->
+            <div class="status-card">
+                <div class="card-top">
+                    <span class="card-title">Database</span>
+                    %s
+                </div>
+                <div>
+                    <p class="card-val">Supabase / PostgreSQL</p>
+                    <p class="card-sub">%s</p>
+                </div>
+            </div>
+
+            <!-- Gemini AI -->
+            <div class="status-card">
+                <div class="card-top">
+                    <span class="card-title">OpenRouter AI</span>
+                    %s
+                </div>
+                <div>
+                    <p class="card-val">Gemini Model Integration</p>
+                    <p class="card-sub">%s</p>
+                </div>
+            </div>
+
+            <!-- Supabase Storage -->
+            <div class="status-card">
+                <div class="card-top">
+                    <span class="card-title">Supabase Storage</span>
+                    %s
+                </div>
+                <div>
+                    <p class="card-val">File/Image Storage</p>
+                    <p class="card-sub">Bucket: %s</p>
+                </div>
+            </div>
+
+            <!-- JWT Security -->
+            <div class="status-card">
+                <div class="card-top">
+                    <span class="card-title">JWT Security</span>
+                    %s
+                </div>
+                <div>
+                    <p class="card-val">Authentication Token</p>
+                    <p class="card-sub">%s</p>
+                </div>
+            </div>
+
+            <!-- VAPID Push -->
+            <div class="status-card">
+                <div class="card-top">
+                    <span class="card-title">VAPID Push</span>
+                    %s
+                </div>
+                <div>
+                    <p class="card-val">Web Push Notifications</p>
+                    <p class="card-sub">%s</p>
+                </div>
+            </div>
+
+            <!-- Expo Push -->
+            <div class="status-card">
+                <div class="card-top">
+                    <span class="card-title">Expo Push</span>
+                    %s
+                </div>
+                <div>
+                    <p class="card-val">Mobile Notifications</p>
+                    <p class="card-sub">%s</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <span>Status checked at: <b>%s</b></span>
+            <span>Request JSON: <a href="?json=true">Click Here</a></span>
+        </div>
+    </div>
+</body>
+</html>`,
+		env,
+		getBadge(dbStatus),
+		func() string {
+			if dbError != "" {
+				return dbError
+			}
+			return "ping: " + dbLatency
+		}(),
+		getBadge(aiStatus),
+		aiDetail,
+		getBadge(storageStatus),
+		storageDetail,
+		getBadge(jwtStatus),
+		jwtDetail,
+		getBadge(vapidStatus),
+		vapidDetail,
+		getBadge(expoStatus),
+		expoDetail,
+		time.Now().Format("2006-01-02 15:04:05"),
+	)
 }
