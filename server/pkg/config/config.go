@@ -78,7 +78,6 @@ type OpenRouterConfig struct {
 
 // Load reads .env file (if present) and parses all environment variables.
 func Load() (*Config, error) {
-	// Gracefully ignore missing .env in production
 	_ = godotenv.Load()
 
 	cfg := &Config{}

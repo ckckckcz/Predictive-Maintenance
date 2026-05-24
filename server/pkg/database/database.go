@@ -9,12 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// NewPool creates a *pgxpool.Pool configured for Supabase.
-//
-// Supabase Transaction Pooler (port 6543) runs PgBouncer in transaction mode,
-// which does NOT support prepared statements. We explicitly set
-// QueryExecModeSimpleProtocol so every query uses the simple wire protocol —
-// compatible with both the transaction pooler AND the session pooler.
 func NewPool(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, error) {
 	poolCfg, err := pgxpool.ParseConfig(cfg.URL)
 	if err != nil {
@@ -22,7 +16,6 @@ func NewPool(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, err
 	}
 
 	// ── Supabase compatibility: disable extended query protocol ──────────────
-	// This is required when using the Transaction Pooler (port 6543).
 	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	// ── Pool sizing ──────────────────────────────────────────────────────────
