@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/greenfields/server/internal/handlers"
-	"github.com/greenfields/server/internal/repository"
-	"github.com/greenfields/server/internal/services"
+	"github.com/greenfields/server/core/handlers"
+	"github.com/greenfields/server/core/repository"
+	"github.com/greenfields/server/core/services"
 	"github.com/greenfields/server/pkg/config"
 	"github.com/greenfields/server/pkg/database"
 )
