@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -27,15 +28,20 @@ func mapServiceError(c *gin.Context, err error) error {
 	}
 	switch {
 	case errors.Is(err, utils.ErrNotFound):
-		utils.NotFound(c, err.Error())
+		msg := strings.TrimPrefix(err.Error(), "resource not found: ")
+		utils.NotFound(c, msg)
 	case errors.Is(err, utils.ErrUnauthorized):
-		utils.Unauthorized(c, err.Error())
+		msg := strings.TrimPrefix(err.Error(), "unauthorized: ")
+		utils.Unauthorized(c, msg)
 	case errors.Is(err, utils.ErrForbidden):
-		utils.Forbidden(c, err.Error())
+		msg := strings.TrimPrefix(err.Error(), "forbidden: ")
+		utils.Forbidden(c, msg)
 	case errors.Is(err, utils.ErrConflict):
-		utils.Conflict(c, err.Error())
+		msg := strings.TrimPrefix(err.Error(), "resource already exists: ")
+		utils.Conflict(c, msg)
 	case errors.Is(err, utils.ErrBadRequest):
-		utils.BadRequest(c, err.Error())
+		msg := strings.TrimPrefix(err.Error(), "bad request: ")
+		utils.BadRequest(c, msg)
 	default:
 		utils.InternalError(c, "an unexpected error occurred")
 	}

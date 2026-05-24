@@ -29,18 +29,18 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest) (*mod
 	user, err := s.users.FindByEmail(ctx, req.Email)
 	if err != nil {
 		log.Printf("[LOGIN DEBUG] User with email %q not found in DB: %v", req.Email, err)
-		return nil, utils.ErrUnauthorized
+		return nil, fmt.Errorf("%w: Akun tidak ditemukan", utils.ErrUnauthorized)
 	}
 
 	if !user.IsActive {
 		log.Printf("[LOGIN DEBUG] User %q is found but marked as inactive", req.Email)
-		return nil, fmt.Errorf("%w: account is deactivated", utils.ErrUnauthorized)
+		return nil, fmt.Errorf("%w: Akun telah dinonaktifkan", utils.ErrUnauthorized)
 	}
 
 	log.Printf("[LOGIN DEBUG] User found. Comparing password hash. Password length sent: %d", len(req.Password))
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		log.Printf("[LOGIN DEBUG] Password comparison failed for %q: %v", req.Email, err)
-		return nil, utils.ErrUnauthorized
+		return nil, fmt.Errorf("%w: Password salah", utils.ErrUnauthorized)
 	}
 
 	log.Printf("[LOGIN DEBUG] Login successful for user %q", req.Email)
